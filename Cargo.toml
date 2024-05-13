@@ -1,0 +1,36 @@
+[package]
+name = "sculptor"
+authors = ["Shiroyashik <shiroyashik@shsr.ru>"]
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[workspace]
+members = ["elyby-api"]
+
+[dependencies]
+# Logging
+log = "0.4.21"
+fern = { version = "0.6.2", features = ["colored"] }
+
+# Errors
+anyhow = "1.0.83"
+
+# Serialization
+chrono = { version = "0.4.38", features = ["now"] }
+serde = { version = "1.0.201", features = ["derive"] }
+
+# Other
+elyby-api = { path = "./elyby-api" }
+dashmap = "5.5.3"
+
+# Crypto
+ring = "0.17.8"
+rand = "0.8.5"
+
+# Web framework
+axum = { version = "0.7.5", features = ["ws", "macros"] }
+tower-http = { version = "0.5.2", features = ["trace"] }
+tokio = { version = "1.37.0", features = ["full"] }
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
