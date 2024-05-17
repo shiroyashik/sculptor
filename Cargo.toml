@@ -12,8 +12,6 @@ members = ["elyby-api"]
 # Logging
 log = "0.4.21"
 fern = { version = "0.6.2", features = ["colored"] }
-
-# Errors
 anyhow = "1.0.83"
 
 # Serialization
@@ -29,8 +27,15 @@ ring = "0.17.8"
 rand = "0.8.5"
 
 # Web framework
-axum = { version = "0.7.5", features = ["ws", "macros"] }
+axum = { version = "0.7.5", features = ["ws", "macros", "http2"] }
 tower-http = { version = "0.5.2", features = ["trace"] }
 tokio = { version = "1.37.0", features = ["full"] }
+hex = "0.4.3"
+uuid = { version = "1.8.0", features = ["serde"] }
+base64 = "0.22.1"
+serde_json = "1.0.117"
+anyhow-http = { version = "0.3.0", features = ["axum"] }
 
+# TODO: Рассортировать!
+# TODO: Заменить Vec<u8> и &[u8] на Bytes
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html

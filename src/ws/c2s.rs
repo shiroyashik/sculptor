@@ -1,3 +1,5 @@
+use uuid::Uuid;
+
 use super::MessageLoadError;
 use std::convert::{TryFrom, TryInto};
 
@@ -6,8 +8,8 @@ use std::convert::{TryFrom, TryInto};
 pub enum C2SMessage<'a> {
     Token(&'a [u8]) = 0,
     Ping(u32, bool, &'a [u8]) = 1,
-    Sub(u128) = 2, // owo
-    Unsub(u128) = 3,
+    Sub(Uuid) = 2, // owo
+    Unsub(Uuid) = 3,
 }
 // 6 - 6
 impl<'a> TryFrom<&'a [u8]> for C2SMessage<'a> {
@@ -36,7 +38,7 @@ impl<'a> TryFrom<&'a [u8]> for C2SMessage<'a> {
                 }
                 2 => {
                     if buf.len() == 17 {
-                        Ok(C2SMessage::Sub(u128::from_be_bytes(
+                        Ok(C2SMessage::Sub(Uuid::from_bytes(
                             (&buf[1..]).try_into().unwrap(),
                         )))
                     } else {
@@ -50,7 +52,7 @@ impl<'a> TryFrom<&'a [u8]> for C2SMessage<'a> {
                 }
                 3 => {
                     if buf.len() == 17 {
-                        Ok(C2SMessage::Unsub(u128::from_be_bytes(
+                        Ok(C2SMessage::Unsub(Uuid::from_bytes(
                             (&buf[1..]).try_into().unwrap(),
                         )))
                     } else {
@@ -81,8 +83,23 @@ impl<'a> Into<Box<[u8]>> for C2SMessage<'a> {
                 .chain(iter::once(s.into()))
                 .chain(d.into_iter().copied())
                 .collect(),
-            C2SMessage::Sub(s) => iter::once(2).chain(s.to_be_bytes()).collect(),
-            C2SMessage::Unsub(s) => iter::once(3).chain(s.to_be_bytes()).collect(),
+            C2SMessage::Sub(s) => iter::once(2).chain(s.into_bytes()).collect(),
+            C2SMessage::Unsub(s) => iter::once(3).chain(s.into_bytes()).collect(),
+        };
+        a
+    }
+}
+
+impl<'a> C2SMessage<'a> {
+    pub fn ping_data(self) -> Box<[u8]> {
+        use std::iter;
+        let a: Box<[u8]> = match self {
+            C2SMessage::Ping(p, s, d) => iter::empty()
+            .chain(p.to_be_bytes())
+            .chain(iter::once(s.into()))
+            .chain(d.into_iter().copied())
+            .collect(),
+            _ => todo!() // FIXME: Это всё нихеровых размеров костыль!
         };
         a
     }

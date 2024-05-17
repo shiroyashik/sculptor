@@ -1,33 +1,53 @@
 use anyhow::Result;
 use axum::{
-    extract::Path,
-    routing::{delete, get, post, put},
-    Router,
+    middleware::from_extractor, routing::{delete, get, post, put}, Router
 };
 use chrono::prelude::*;
 use dashmap::DashMap;
 use fern::colors::{Color, ColoredLevelConfig};
 use log::info;
-use std::sync::{Arc, Mutex};
+use uuid::Uuid;
+use std::sync::Arc;
+use tokio::sync::{broadcast, Mutex};
 use tower_http::trace::TraceLayer;
 
 // WebSocket worker
 mod ws;
 use ws::handler;
 
-// API
+// API: Auth
 mod auth;
 use auth as api_auth;
 
+// API: Server info
+mod info;
+use info as api_info;
+
+// API: Profile
+mod profile;
+use profile as api_profile;
+
+// Utils
+mod utils;
+
 #[derive(Debug, Clone)]
 pub struct Userinfo {
-    id: usize
+    username: String,
+    uuid: Uuid,
 }
 
 #[derive(Debug, Clone)]
+pub struct AuthenticatedLink(String);
+
+#[derive(Debug, Clone)]
 pub struct AppState {
-    authenticated: Arc<Mutex<DashMap<String, String>>>, // <SHA1, USERNAME>
-    pending: Arc<Mutex<DashMap<String, String>>>
+    // Пользователи с незаконченной аутентификацией
+    pending: Arc<Mutex<DashMap<String, String>>>, // <SHA1 serverId, USERNAME>
+    // Аутентифицированные пользователи
+    authenticated: Arc<Mutex<DashMap<String, Userinfo>>>, // <SHA1 serverId, Userinfo> NOTE: В будущем попробовать в отдельной ветке LockRw
+    authenticated_link: Arc<Mutex<DashMap<Uuid, AuthenticatedLink>>>, // Получаем токен из Uuid
+    // Трансляции Ping'ов для WebSocket соединений
+    broadcasts: Arc<Mutex<DashMap<Uuid, broadcast::Sender<Vec<u8>>>>>,
 }
 
 #[tokio::main]
@@ -54,13 +74,17 @@ async fn main() -> Result<()> {
         .chain(fern::log_file("output.log")?)
         .apply()?;
 
-    // Config init here
+    // Конфиг
+    // TODO: Сделать Config.toml для установки настроек сервера
     let listen = "0.0.0.0:6665";
 
-    // State init here
+    // Состояние
+    // TODO: Сделать usersStorage.toml как "временная" замена базе данных.
     let state = AppState {
+        pending: Arc::new(Mutex::new(DashMap::new())),
         authenticated: Arc::new(Mutex::new(DashMap::new())),
-        pending: Arc::new(Mutex::new(DashMap::new()))
+        authenticated_link: Arc::new(Mutex::new(DashMap::new())),
+        broadcasts: Arc::new(Mutex::new(DashMap::new())),
     };
 
     let api = Router::new()
@@ -70,11 +94,11 @@ async fn main() -> Result<()> {
         ) // check Auth; return 200 OK if token valid
         .route(
             "/limits",
-            get(|| async { "@toomanylimits" })
+            get(api_info::limits)
         ) // Need more info :( TODO:
         .route(
             "/version",
-            get(|| async { "{\"release\":\"2.7.1\",\"prerelease\":\"2.7.1\"}" }),
+            get(api_info::version),
         )
         .route(
             "/motd",
@@ -82,28 +106,32 @@ async fn main() -> Result<()> {
         )
         .route(
             "/equip",
-            post(|| async { "Do it! NOW!" })
-        ) // set Equipped; TODO:
+            post(api_profile::equip_avatar)
+        )
         .route(
-            "/:owner/:id",
-            get(|Path((owner, id)): Path<(String, String)>| async move {
-                format!("getting user {id}, owner {owner}")
-            }),
-        ) // get Avatar
+            "/:uuid",
+            get(api_profile::user_info),
+        )
         .route(
-            "/:avatar",
-            put(|Path(avatar): Path<String>| async move { format!("put {avatar}") }),
-        ) // put Avatar
+            "/:uuid/avatar",
+            get(api_profile::download_avatar),
+        )
         .route(
-            "/:avatar",
-            delete(|Path(avatar): Path<String>| async move { format!("delete {avatar}") }),
+            "/avatar",
+            put(api_profile::upload_avatar),
+        )
+        .route(
+            "/avatar",
+            delete(api_profile::delete_avatar),
         ); // delete Avatar
 
     let app = Router::new()
         .nest("/api", api)
+        .route("/api/", get(api_auth::status))
         .route("/ws", get(handler))
-        .layer(TraceLayer::new_for_http().on_request(()))
-        .with_state(state);
+        .route_layer(from_extractor::<api_auth::Token>())
+        .with_state(state)
+        .layer(TraceLayer::new_for_http().on_request(()));
 
     let listener = tokio::net::TcpListener::bind(listen).await?;
     info!("Listening on {}", listener.local_addr()?);

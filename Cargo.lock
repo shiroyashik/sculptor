@@ -39,6 +39,21 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "25bdb32cbbdce2b519a9cd7df3a678443100e265d5e25ca763b7572a5104f5f3"
 
 [[package]]
+name = "anyhow-http"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f1e146d0ff1e765ca855fba9205903fd26a0f67956be6c2a2b3b1dddbe62c182"
+dependencies = [
+ "anyhow",
+ "axum",
+ "bytes",
+ "http",
+ "mime",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "async-trait"
 version = "0.1.80"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -303,6 +318,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tokio",
+ "uuid",
 ]
 
 [[package]]
@@ -480,6 +496,12 @@ name = "hermit-abi"
 version = "0.3.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d231dfb89cfffdbc30e7fc41579ed6066ad03abda9e567ccafae602b97ec5024"
+
+[[package]]
+name = "hex"
+version = "0.4.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
 
 [[package]]
 name = "http"
@@ -1081,17 +1103,22 @@ name = "sculptor"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "anyhow-http",
  "axum",
+ "base64 0.22.1",
  "chrono",
  "dashmap",
  "elyby-api",
  "fern",
+ "hex",
  "log",
  "rand",
  "ring",
  "serde",
+ "serde_json",
  "tokio",
  "tower-http",
+ "uuid",
 ]
 
 [[package]]
@@ -1516,6 +1543,15 @@ name = "utf-8"
 version = "0.7.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "09cc8ee72d2a9becf2f2febe0205bbed8fc6615b7cb429ad062dc7b7ddd036a9"
+
+[[package]]
+name = "uuid"
+version = "1.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a183cf7feeba97b4dd1c0d46788634f6221d87fa961b305bed08c851829efcc0"
+dependencies = [
+ "serde",
+]
 
 [[package]]
 name = "vcpkg"
