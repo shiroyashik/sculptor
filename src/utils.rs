@@ -33,6 +33,11 @@ pub fn _generate_hex_string(length: usize) -> String { // FIXME: Variable doesn'
     hex::encode(random_bytes)
 }
 
+pub fn get_correct_array(value: &toml::Value) -> Vec<u8> {
+    // let res: Vec<u8>;
+    value.as_array().unwrap().iter().map(move |x| x.as_integer().unwrap() as u8).collect()
+}
+
 pub fn format_uuid(uuid: Uuid) -> String {
     // let uuid = Uuid::parse_str(&uuid)?; TODO: Вероятно format_uuid стоит убрать
         // .map_err(|_| tide::Error::from_str(StatusCode::InternalServerError, "Failed to parse UUID"))?;

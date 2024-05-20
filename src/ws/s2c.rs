@@ -1,15 +1,14 @@
-use log::debug;
-use uuid::Uuid;
-
 use super::MessageLoadError;
 use std::convert::{TryFrom, TryInto};
+
+use uuid::Uuid;
 
 #[repr(u8)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum S2CMessage<'a> {
     Auth = 0,
     Ping(Uuid, u32, bool, &'a [u8]) = 1,
-    Event(Uuid) = 2, // UUID Обновляет аватар других игроков
+    Event(Uuid) = 2, // Updates avatar for other players
     Toast(u8, &'a str, Option<&'a str>) = 3,
     Chat(&'a str) = 4,
     Notice(u8) = 5,
@@ -88,16 +87,6 @@ impl<'a> Into<Box<[u8]>> for S2CMessage<'a> {
 }
 
 impl<'a> S2CMessage<'a> {
-    pub fn to_s2c_ping(uuid: Uuid, buf: &'a [u8]) -> S2CMessage<'a> {
-        use S2CMessage::Ping;
-        debug!("!!! {buf:?}");
-        Ping(
-            uuid,
-            u32::from_be_bytes((&buf[1..5]).try_into().unwrap()),
-            buf[5] != 0, // Ping может быть короче чем ожидалось
-            &buf[6..],
-        )
-    }
     pub fn to_array(self) -> Box<[u8]> {
         <S2CMessage as Into<Box<[u8]>>>::into(self)
     }

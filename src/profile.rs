@@ -1,17 +1,18 @@
 use anyhow_http::{http_error_ret, response::Result};
 use axum::{body::Bytes, debug_handler, extract::{Path, State}, Json};
+use log::{debug, warn};
 use serde_json::{json, Value};
 use tokio::{fs, io::{AsyncReadExt, BufWriter, self}};
 use uuid::Uuid;
 
-use crate::{utils::{calculate_file_sha256, format_uuid}, auth::Token, AppState};
+use crate::{auth::Token, utils::{calculate_file_sha256, format_uuid, get_correct_array}, ws::S2CMessage, AppState};
 
 #[debug_handler]
 pub async fn user_info(
     Path(uuid): Path<Uuid>,
-    State(_state): State<AppState>, // FIXME: Variable doesn't using!
+    State(state): State<AppState>, // FIXME: Variable doesn't using!
 ) -> Json<Value> {
-    log::info!("Получение информации для {}",uuid);
+    log::info!("Receiving profile information for {}",uuid);
 
     let formatted_uuid = format_uuid(uuid);
 
@@ -23,12 +24,22 @@ pub async fn user_info(
         "equipped": [],
         "lastUsed": "2024-05-11T22:20:48.884Z",
         "equippedBadges": {
-            "special": [1,1,1,1,1,1],
-            "pride": [0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+            "special": [0,0,0,0,0,0],
+            "pride": [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
         },
         "version": "0.1.4+1.20.1",
         "banned": false
     });
+
+    if let Some(settings) = state.advanced_users.lock().await.get(&formatted_uuid) {
+        let pride = get_correct_array(settings.get("pride").unwrap());
+        let special = get_correct_array(settings.get("special").unwrap());
+        let badges = user_info_response.get_mut("equippedBadges").and_then(Value::as_object_mut).unwrap();
+        badges.append(json!({
+            "special": special,
+            "pride": pride
+        }).as_object_mut().unwrap())
+    }
 
     if fs::metadata(&avatar_file).await.is_ok() {
         if let Some(equipped) = user_info_response.get_mut("equipped").and_then(Value::as_array_mut){
@@ -54,11 +65,11 @@ pub async fn download_avatar(
     Path(uuid): Path<Uuid>,
 ) -> Result<Vec<u8>> {
     let uuid = format_uuid(uuid);
-    log::info!("Запрашиваем аватар: {}", uuid);
+    log::info!("Requesting an avatar: {}", uuid);
     let mut file = if let Ok(file) = fs::File::open(format!("avatars/{}.moon", uuid)).await {
         file
     } else {
-        http_error_ret!(NOT_FOUND, "Ошибка! Данный аватар не существует!");
+        http_error_ret!(NOT_FOUND, "Error! This avatar does not exist!");
     };
     let mut buffer = Vec::new();
     file.read_to_end(&mut buffer).await?;
@@ -81,12 +92,12 @@ pub async fn upload_avatar(
 
     let token = match token {
         Some(t) => t,
-        None => http_error_ret!(UNAUTHORIZED, "Ошибка аутентификации!"),
+        None => http_error_ret!(UNAUTHORIZED, "Authentication error!"),
     };
     let userinfos = state.authenticated.lock().await;
 
     if let Some(user_info) = userinfos.get(token.as_str()) {
-        log::info!("{} ({}) пытается загрузить аватар",user_info.uuid,user_info.username);
+        log::info!("{} ({}) trying to upload an avatar",user_info.uuid,user_info.username);
         let avatar_file = format!("avatars/{}.moon",user_info.uuid);
         let mut file = BufWriter::new(fs::File::create(&avatar_file).await?);
         io::copy(&mut request_data.as_ref(), &mut file).await?;
@@ -94,7 +105,15 @@ pub async fn upload_avatar(
     Ok(format!("ok"))
 }
 
-pub async fn equip_avatar() -> String {
+pub async fn equip_avatar(
+    Token(token): Token,
+    State(state): State<AppState>,
+) -> String {
+    debug!("[API] S2C : Equip");
+    let uuid = state.authenticated.lock().await.get(&token.unwrap()).unwrap().uuid;
+    if state.broadcasts.lock().await.get(&uuid).unwrap().send(S2CMessage::Event(uuid).to_vec()).is_err() {
+        warn!("[WebSocket] Failed to send Event! Maybe there is no one to send")  // FIXME: Засунуть в Handler
+    };
     format!("ok")
 }
 
@@ -104,11 +123,11 @@ pub async fn delete_avatar(
 ) -> Result<String> {
     let token = match token {
         Some(t) => t,
-        None => http_error_ret!(UNAUTHORIZED, "Ошибка аутентификации!"),
+        None => http_error_ret!(UNAUTHORIZED, "Authentication error!"),
     };
     let userinfos = state.authenticated.lock().await;
     if let Some(user_info) = userinfos.get(token.as_str()) {
-        log::info!("{} ({}) пытается удалить аватар",user_info.uuid,user_info.username);
+        log::info!("{} ({}) is trying to delete the avatar",user_info.uuid,user_info.username);
         let avatar_file = format!("avatars/{}.moon",user_info.uuid);
         fs::remove_file(avatar_file).await?;
     }

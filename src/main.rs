@@ -30,24 +30,27 @@ use profile as api_profile;
 // Utils
 mod utils;
 
+// Config
+mod config;
+
 #[derive(Debug, Clone)]
 pub struct Userinfo {
     username: String,
     uuid: Uuid,
+    auth_system: api_auth::AuthSystem,
+
 }
 
 #[derive(Debug, Clone)]
-pub struct AuthenticatedLink(String);
-
-#[derive(Debug, Clone)]
 pub struct AppState {
-    // Пользователи с незаконченной аутентификацией
+    // Users with incomplete authentication
     pending: Arc<Mutex<DashMap<String, String>>>, // <SHA1 serverId, USERNAME>
-    // Аутентифицированные пользователи
-    authenticated: Arc<Mutex<DashMap<String, Userinfo>>>, // <SHA1 serverId, Userinfo> NOTE: В будущем попробовать в отдельной ветке LockRw
-    authenticated_link: Arc<Mutex<DashMap<Uuid, AuthenticatedLink>>>, // Получаем токен из Uuid
-    // Трансляции Ping'ов для WebSocket соединений
+    // Authenticated users
+    authenticated: Arc<Mutex<DashMap<String, Userinfo>>>, // <SHA1 serverId, Userinfo> NOTE: In the future, try it in a separate LockRw branch
+    // Ping broadcasts for WebSocket connections
     broadcasts: Arc<Mutex<DashMap<Uuid, broadcast::Sender<Vec<u8>>>>>,
+    // Advanced configured users
+    advanced_users: Arc<Mutex<toml::Table>>,
 }
 
 #[tokio::main]
@@ -68,41 +71,55 @@ async fn main() -> Result<()> {
                 message
             ))
         })
-        .level(log::LevelFilter::Debug)
+        .level(log::LevelFilter::Info)
         // .level_for("hyper", log::LevelFilter::Info)
         .chain(std::io::stdout())
         .chain(fern::log_file("output.log")?)
         .apply()?;
 
-    // Конфиг
-    // TODO: Сделать Config.toml для установки настроек сервера
-    let listen = "0.0.0.0:6665";
+    // Config
+    let config = config::Config::parse("Config.toml".into());
+    let listen = config.listen.as_str();
 
-    // Состояние
-    // TODO: Сделать usersStorage.toml как "временная" замена базе данных.
+    // State
     let state = AppState {
         pending: Arc::new(Mutex::new(DashMap::new())),
         authenticated: Arc::new(Mutex::new(DashMap::new())),
-        authenticated_link: Arc::new(Mutex::new(DashMap::new())),
         broadcasts: Arc::new(Mutex::new(DashMap::new())),
+        advanced_users: Arc::new(Mutex::new(config.advanced_users)),
     };
+    
+    // Automatic update of advanced_users while the server is running
+    let advanced_users = state.advanced_users.clone();
+    tokio::spawn(async move {
+        loop {
+            tokio::time::sleep(std::time::Duration::from_secs(10)).await;
+
+            let new_config = config::Config::parse("Config.toml".into()).advanced_users;
+            let mut config = advanced_users.lock().await;
+
+            if new_config != *config {
+                *config = new_config;
+            }
+        }
+    });
 
     let api = Router::new()
         .nest(
             "//auth",
             api_auth::router()
-        ) // check Auth; return 200 OK if token valid
+        )
         .route(
             "/limits",
             get(api_info::limits)
-        ) // Need more info :( TODO:
+        ) // TODO:
         .route(
             "/version",
             get(api_info::version),
         )
         .route(
             "/motd",
-            get(|| async { "\"written by an black cat :3 mew\"" }),
+            get(|| async { config.motd }),
         )
         .route(
             "/equip",

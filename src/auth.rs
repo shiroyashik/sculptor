@@ -1,7 +1,9 @@
+use anyhow::anyhow;
 use axum::{async_trait, debug_handler, extract::{FromRequestParts, Query, State}, http::{request::Parts, StatusCode}, response::{IntoResponse, Response}, routing::get, Router};
-use log::debug;
+use log::{debug, info, trace};
 use serde::Deserialize;
 use ring::digest::{self, digest};
+use uuid::Uuid;
 use crate::utils::*;
 
 use crate::AppState;
@@ -18,7 +20,7 @@ pub fn router() -> Router<AppState> {
 struct Id {username: String}
 
 #[debug_handler]
-async fn id( // 1 этап аутентификации
+async fn id( // First stage of authentication
     Query(query): Query<Id>,
     State(state): State<AppState>,
 ) -> String {
@@ -32,17 +34,18 @@ async fn id( // 1 этап аутентификации
 struct Verify {id: String}
 
 #[debug_handler]
-async fn verify( // 2 этап аутентификации
+async fn verify( // Second stage of authentication
     Query(query): Query<Verify>,
     State(state): State<AppState>,
 ) -> String {
     let server_id = query.id.clone();
     let username = state.pending.lock().await.remove(&server_id).unwrap().1;
-    if let Some(uuid) = elyby_api::has_joined(&server_id, &username).await.unwrap() {
+    if let Some((uuid, auth_system)) = has_joined(&server_id, &username).await.unwrap() {
+        info!("[Authorization] {username} logged in using {auth_system:?}");
         let authenticated = state.authenticated.lock().await;
-        let link = state.authenticated_link.lock().await;
-        authenticated.insert(server_id.clone(), crate::Userinfo { username, uuid });
-        link.insert(uuid, crate::AuthenticatedLink(server_id.clone()));
+        // let link = state.authenticated_link.lock().await; // // Реализация поиска пользователя в HashMap по UUID
+        authenticated.insert(server_id.clone(), crate::Userinfo { username, uuid, auth_system });
+        // link.insert(uuid, crate::AuthenticatedLink(server_id.clone())); // Реализация поиска пользователя в HashMap по UUID
         return format!("{server_id}")
     } else {
         return String::from("failed to verify")
@@ -88,7 +91,7 @@ where
             .headers
             .get("token")
             .and_then(|value| value.to_str().ok());
-        debug!("[Extractor Token] Данные: {token:?}");
+        trace!("[Extractor Token] Data: {token:?}");
         match token {
             Some(token) => Ok(Self(Some(token.to_string()))),
             None => Ok(Self(None)),
@@ -96,3 +99,47 @@ where
     }
 }
 // Конец экстрактора
+
+// Work with external APIs
+
+#[derive(Debug, Clone)]
+pub enum AuthSystem {
+    ElyBy,
+    Mojang,
+}
+
+pub async fn has_joined(server_id: &str, username: &str) -> anyhow::Result<Option<(Uuid, AuthSystem)>> {
+    let client = reqwest::Client::new();
+    tokio::select! {
+        Ok(Some(res)) = async {
+            let res = client.clone().get(
+                format!("http://minecraft.ely.by/session/hasJoined?serverId={server_id}&username={username}")).send().await?;
+            debug!("{res:?}");
+            match res.status().as_u16() {
+                200 => {
+                    let json = serde_json::from_str::<serde_json::Value>(&res.text().await?)?;
+                    let uuid = Uuid::parse_str(json["id"].as_str().unwrap())?;
+                    Ok(Some((uuid, AuthSystem::ElyBy)))
+                },
+                401 => Ok(None),
+                _ => Err(anyhow::anyhow!("Unknown code: {}", res.status().as_u16()))
+            }
+        } => {Ok(Some(res))}
+        Ok(Some(res)) = async {
+            let res = client.clone().get(
+                format!("https://sessionserver.mojang.com/session/minecraft/hasJoined?serverId={server_id}&username={username}")).send().await?;
+            debug!("{res:?}");
+            match res.status().as_u16() {
+                200 => {
+                    let json = serde_json::from_str::<serde_json::Value>(&res.text().await?)?;
+                    let uuid = Uuid::parse_str(json["id"].as_str().unwrap())?;
+                    Ok(Some((uuid, AuthSystem::Mojang)))
+                },
+                204 => Ok(None),
+                _ => Err(anyhow::anyhow!("Unknown code: {}", res.status().as_u16()))
+            }
+        } => {Ok(Some(res))}
+        else => {Err(anyhow!("Something went wrong in external apis request process"))}
+    }
+}
+// End of work with external APIs

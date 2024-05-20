@@ -89,18 +89,3 @@ impl<'a> Into<Box<[u8]>> for C2SMessage<'a> {
         a
     }
 }
-
-impl<'a> C2SMessage<'a> {
-    pub fn ping_data(self) -> Box<[u8]> {
-        use std::iter;
-        let a: Box<[u8]> = match self {
-            C2SMessage::Ping(p, s, d) => iter::empty()
-            .chain(p.to_be_bytes())
-            .chain(iter::once(s.into()))
-            .chain(d.into_iter().copied())
-            .collect(),
-            _ => todo!() // FIXME: Это всё нихеровых размеров костыль!
-        };
-        a
-    }
-}

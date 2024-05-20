@@ -1,0 +1,43 @@
+listen = "0.0.0.0:6665"
+motd = """
+[
+    {
+        "text": "The Sculptor\nUnofficial Backend V2 for Figura\n\n"
+    },
+    {
+        "clickEvent": {
+            "action": "open_url",
+            "value": "https://github.com/shiroyashik/sculptor"
+        },
+        "text": "Please "
+    },
+    {
+        "clickEvent": {
+            "action": "open_url",
+            "value": "https://github.com/shiroyashik/sculptor"
+        },
+        "color": "gold",
+        "text": "Star",
+        "underlined": true
+    },
+    {
+        "clickEvent": {
+            "action": "open_url",
+            "value": "https://github.com/shiroyashik/sculptor"
+        },
+        "text": " me on GitHub!\n\n"
+    }
+]
+"""
+
+# Shiroyashik
+[advancedUsers.66004548-4de5-49de-bade-9c3933d8eb97]
+special = [0,0,0,1,0,0] # 6
+pride = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0] # 25
+
+# Your nickname here
+# [advancedUsers.your uuid here]
+# special = [0,1,0,0,0,0] # and set badges what you want! :D
+# pride = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+
+# you can create an unlimited number of "advancedUsers" for any users.

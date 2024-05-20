@@ -4,8 +4,8 @@ use serde_json::{json, Value};
 
 pub async fn version() -> Json<Value> {
     Json(json!({
-        "release": "1.7.1",
-        "prerelease": "1.7.2"
+        "release": "0.1.4",
+        "prerelease": "0.1.4"
     }))
 }
 
@@ -13,7 +13,7 @@ pub async fn limits() -> Json<Value> {
     Json(json!({
         "rate": {
           "pingSize": 1024,
-          "pingRate": 32, // TODO: Проверить
+          "pingRate": 32,
           "equip": 1,
           "download": 50,
           "upload": 1
