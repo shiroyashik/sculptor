@@ -9,5 +9,5 @@ And also a distinctive feature is the possibility of player identification throu
 ### TODO:
 - [ ] Realization of storing profiles in the database
 - [ ] Frontend for moderation
-- [ ] Check the possibility of replacing assets to display the authorization system used by the player
+- [ ] Autonomous working without reverse proxy server
 - [ ] and many other...

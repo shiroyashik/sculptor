@@ -15,7 +15,7 @@ pub fn router() -> Router<AppState> {
 }
 
 
-// Веб функции
+// Web
 #[derive(Deserialize)]
 struct Id {username: String}
 
@@ -25,7 +25,7 @@ async fn id( // First stage of authentication
     State(state): State<AppState>,
 ) -> String {
     let server_id = bytes_into_string(&digest(&digest::SHA1_FOR_LEGACY_USE_ONLY, &rand()).as_ref()[0 .. 20]);
-    let state = state.pending.lock().await;
+    let state = state.pending;
     state.insert(server_id.clone(), query.username);
     server_id
 }
@@ -39,12 +39,12 @@ async fn verify( // Second stage of authentication
     State(state): State<AppState>,
 ) -> String {
     let server_id = query.id.clone();
-    let username = state.pending.lock().await.remove(&server_id).unwrap().1;
+    let username = state.pending.remove(&server_id).unwrap().1;
     if let Some((uuid, auth_system)) = has_joined(&server_id, &username).await.unwrap() {
         info!("[Authorization] {username} logged in using {auth_system:?}");
-        let authenticated = state.authenticated.lock().await;
+        let authenticated = state.authenticated;
         // let link = state.authenticated_link.lock().await; // // Реализация поиска пользователя в HashMap по UUID
-        authenticated.insert(server_id.clone(), crate::Userinfo { username, uuid, auth_system });
+        authenticated.insert(uuid, server_id.clone(), crate::Userinfo { username, uuid, auth_system });
         // link.insert(uuid, crate::AuthenticatedLink(server_id.clone())); // Реализация поиска пользователя в HashMap по UUID
         return format!("{server_id}")
     } else {
@@ -58,7 +58,7 @@ pub async fn status(
 ) -> Response {
     match token {
         Some(token) => {
-            if state.authenticated.lock().await.contains_key(&token) {
+            if state.authenticated.contains_token(&token) {
                 // format!("ok") // 200
                 (StatusCode::OK, format!("ok")).into_response()
             } else {
@@ -72,10 +72,10 @@ pub async fn status(
         },
     }
 }
-// Конец веб функций
+// Web End
 
 
-// Это экстрактор достающий из Заголовка зовущегося токен, соответственно ТОКЕН.
+// It's an extractor that pulls a token from the Header.
 #[derive(PartialEq, Debug)]
 pub struct Token(pub Option<String>);
 
@@ -98,7 +98,7 @@ where
         }
     }
 }
-// Конец экстрактора
+// End Extractor
 
 // Work with external APIs
 
@@ -106,6 +106,15 @@ where
 pub enum AuthSystem {
     ElyBy,
     Mojang,
+}
+
+impl ToString for AuthSystem {
+    fn to_string(&self) -> String {
+        match self {
+            AuthSystem::ElyBy => String::from("elyby"),
+            AuthSystem::Mojang => String::from("mojang"),
+        }
+    }
 }
 
 pub async fn has_joined(server_id: &str, username: &str) -> anyhow::Result<Option<(Uuid, AuthSystem)>> {

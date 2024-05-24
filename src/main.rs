@@ -42,13 +42,42 @@ pub struct Userinfo {
 }
 
 #[derive(Debug, Clone)]
+struct Authenticated {
+    user_data: DashMap<String, Userinfo>,
+    uuid: DashMap<Uuid, String>,
+}
+
+impl Authenticated {
+    fn new() -> Self {
+        Self { user_data: DashMap::new(), uuid: DashMap::new() }
+    }
+    pub fn insert(&self, uuid: Uuid, token: String, userinfo: Userinfo) -> Option<Userinfo> {
+        self.uuid.insert(uuid, token.clone());
+        self.user_data.insert(token, userinfo)
+    }
+    pub fn get(&self, token: &String) -> Option<dashmap::mapref::one::Ref<'_, std::string::String, Userinfo>> {
+        self.user_data.get(token)
+    }
+    pub fn get_by_uuid(&self, uuid: &Uuid) -> Option<dashmap::mapref::one::Ref<'_, std::string::String, Userinfo>> {
+        if let Some(token) = self.uuid.get(uuid) {
+            self.user_data.get(&token.to_string())
+        } else {
+            None
+        }
+    }
+    pub fn contains_token(&self, token: &String) -> bool {
+        self.user_data.contains_key(token)
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct AppState {
     // Users with incomplete authentication
-    pending: Arc<Mutex<DashMap<String, String>>>, // <SHA1 serverId, USERNAME>
+    pending: Arc<DashMap<String, String>>, // <SHA1 serverId, USERNAME>
     // Authenticated users
-    authenticated: Arc<Mutex<DashMap<String, Userinfo>>>, // <SHA1 serverId, Userinfo> NOTE: In the future, try it in a separate LockRw branch
+    authenticated: Arc<Authenticated>, // <SHA1 serverId, Userinfo> NOTE: In the future, try it in a separate LockRw branch
     // Ping broadcasts for WebSocket connections
-    broadcasts: Arc<Mutex<DashMap<Uuid, broadcast::Sender<Vec<u8>>>>>,
+    broadcasts: Arc<DashMap<Uuid, broadcast::Sender<Vec<u8>>>>,
     // Advanced configured users
     advanced_users: Arc<Mutex<toml::Table>>,
 }
@@ -83,9 +112,9 @@ async fn main() -> Result<()> {
 
     // State
     let state = AppState {
-        pending: Arc::new(Mutex::new(DashMap::new())),
-        authenticated: Arc::new(Mutex::new(DashMap::new())),
-        broadcasts: Arc::new(Mutex::new(DashMap::new())),
+        pending: Arc::new(DashMap::new()),
+        authenticated: Arc::new(Authenticated::new()),
+        broadcasts: Arc::new(DashMap::new()),
         advanced_users: Arc::new(Mutex::new(config.advanced_users)),
     };
     

@@ -14,9 +14,14 @@ pub async fn user_info(
 ) -> Json<Value> {
     log::info!("Receiving profile information for {}",uuid);
 
-    let formatted_uuid = format_uuid(uuid);
+    let formatted_uuid = format_uuid(&uuid);
 
     let avatar_file = format!("avatars/{}.moon", formatted_uuid);
+
+    let auth_system = match state.authenticated.get_by_uuid(&uuid) {
+        Some(d) => d.auth_system.to_string(),
+        None => return Json(json!("err")),
+    };
 
     let mut user_info_response = json!({
         "uuid": &formatted_uuid,
@@ -28,7 +33,8 @@ pub async fn user_info(
             "pride": [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
         },
         "version": "0.1.4+1.20.1",
-        "banned": false
+        "banned": false,
+        "authSystem": auth_system // add Trust
     });
 
     if let Some(settings) = state.advanced_users.lock().await.get(&formatted_uuid) {
@@ -64,7 +70,7 @@ pub async fn user_info(
 pub async fn download_avatar(
     Path(uuid): Path<Uuid>,
 ) -> Result<Vec<u8>> {
-    let uuid = format_uuid(uuid);
+    let uuid = format_uuid(&uuid);
     log::info!("Requesting an avatar: {}", uuid);
     let mut file = if let Ok(file) = fs::File::open(format!("avatars/{}.moon", uuid)).await {
         file
@@ -94,9 +100,8 @@ pub async fn upload_avatar(
         Some(t) => t,
         None => http_error_ret!(UNAUTHORIZED, "Authentication error!"),
     };
-    let userinfos = state.authenticated.lock().await;
 
-    if let Some(user_info) = userinfos.get(token.as_str()) {
+    if let Some(user_info) = state.authenticated.get(&token) {
         log::info!("{} ({}) trying to upload an avatar",user_info.uuid,user_info.username);
         let avatar_file = format!("avatars/{}.moon",user_info.uuid);
         let mut file = BufWriter::new(fs::File::create(&avatar_file).await?);
@@ -110,8 +115,8 @@ pub async fn equip_avatar(
     State(state): State<AppState>,
 ) -> String {
     debug!("[API] S2C : Equip");
-    let uuid = state.authenticated.lock().await.get(&token.unwrap()).unwrap().uuid;
-    if state.broadcasts.lock().await.get(&uuid).unwrap().send(S2CMessage::Event(uuid).to_vec()).is_err() {
+    let uuid = state.authenticated.get(&token.unwrap()).unwrap().uuid;
+    if state.broadcasts.get(&uuid).unwrap().send(S2CMessage::Event(uuid).to_vec()).is_err() {
         warn!("[WebSocket] Failed to send Event! Maybe there is no one to send")  // FIXME: Засунуть в Handler
     };
     format!("ok")
@@ -125,8 +130,7 @@ pub async fn delete_avatar(
         Some(t) => t,
         None => http_error_ret!(UNAUTHORIZED, "Authentication error!"),
     };
-    let userinfos = state.authenticated.lock().await;
-    if let Some(user_info) = userinfos.get(token.as_str()) {
+    if let Some(user_info) = state.authenticated.get(&token) {
         log::info!("{} ({}) is trying to delete the avatar",user_info.uuid,user_info.username);
         let avatar_file = format!("avatars/{}.moon",user_info.uuid);
         fs::remove_file(avatar_file).await?;
