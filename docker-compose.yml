@@ -1,0 +1,17 @@
+name: sculptor
+
+services:
+  sculptor:
+    build: .
+    container_name: sculptor
+    restart: unless-stopped
+    volumes:
+      - ./Config.toml:/app/Config.toml:ro
+      - ./avatars:/app/avatars
+    ## Recommended for use with reverse proxy.
+    # labels:
+    #   - traefik.enable=true
+    #   - traefik.http.routers.sculptor.rule=Host(`mc.example.com`)
+    #   - traefik.http.routers.sculptor.entrypoints=websecure, web
+    #   - traefik.http.routers.sculptor.tls=true
+    #   - traefik.http.routers.sculptor.tls.certresolver=production
