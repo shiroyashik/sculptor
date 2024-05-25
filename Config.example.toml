@@ -1,8 +1,18 @@
-listen = "0.0.0.0:6665"
+listen = "0.0.0.0:6665" # Don't touch this if you running under Docker container
+
+# Message of The Day
+# It will be displayed to every player in the Figura menu who is connected to your server
 motd = """
 [
     {
-        "text": "The Sculptor\nUnofficial Backend V2 for Figura\n\n"
+        "text": "You are connected to "
+    },
+    {
+        "color": "gold",
+        "text": "The Sculptor"
+    },
+    {
+        "text": "\nUnofficial Backend V2 for Figura\n\n"
     },
     {
         "clickEvent": {
