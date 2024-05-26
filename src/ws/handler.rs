@@ -50,18 +50,20 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
                         info!("[WebSocket{}] Connection successfully closed!", owner.name());
                         if let Some(u) = owner.0 {
                             state.broadcasts.remove(&u.uuid);
+                            state.authenticated.remove(&u.uuid);
                         }
                         return;
                     }
                     msg
                 } else {
-                    warn!("[WebSocket{}] Receive error! Connection terminated!", owner.name());
+                    debug!("[WebSocket{}] Receive error! Connection terminated!", owner.name());
                     if let Some(u) = owner.0 {
                         state.broadcasts.remove(&u.uuid);
+                        state.authenticated.remove(&u.uuid);
                     }
                     return;
                 };
-                // Далее код для обработки msg
+                // Next is the code for processing msg
                 let msg_vec = msg.clone().into_data();
                 let msg_array = msg_vec.as_slice();
                 
@@ -71,6 +73,7 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
                         error!("[WebSocket{}] This message is not from Figura! {e:?}", owner.name());
                         if let Some(u) = owner.0 {
                             state.broadcasts.remove(&u.uuid);
+                            state.authenticated.remove(&u.uuid);
                         }
                         return;
                     },
@@ -79,10 +82,10 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
                 debug!("[WebSocket{}] Raw: {newmsg:?}", owner.name());
         
                 match newmsg {
-                    C2SMessage::Token(token) => { // FIXME: Написать переменную спомощью которой бужет проверяться авторизовался ли пользователь или нет
+                    C2SMessage::Token(token) => {
                     debug!("[WebSocket{}] C2S : Token", owner.name());
                         let token = String::from_utf8(token.to_vec()).unwrap();
-                        match state.authenticated.get(&token) { // Принцип прост: если токена в authenticated нет, значит это trash
+                        match state.authenticated.get(&token) { // The principle is simple: if there is no token in authenticated, then it's "dirty hacker" :D
                             Some(t) => {
                                 //username = t.username.clone();
                                 owner.0 = Some(WSUser { username: t.username.clone(), token, uuid: t.uuid });
@@ -103,8 +106,9 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
                                 debug!("[WebSocket] Tried to log in with {token}"); // Tried to log in with token: {token}
                                 if let Some(u) = owner.0 {
                                     state.broadcasts.remove(&u.uuid);
+                                    state.authenticated.remove(&u.uuid);
                                 }
-                                return; // TODO: Прописать код отключения
+                                return; // TODO: Define the trip code
                             },
                         };
                     },
@@ -117,9 +121,9 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
                         };
                         continue;
                     },
-                    C2SMessage::Sub(uuid) => { // FIXME: Исключить возможность использования SUB без авторизации
+                    C2SMessage::Sub(uuid) => { // TODO: Eliminate the possibility of using SUB without authentication
                         debug!("[WebSocket{}] C2S : Sub", owner.name());
-                        // Отбрасываю Sub на самого себя
+                        // Rejecting Sub to itself
                         if uuid == owner.0.clone().unwrap().uuid {
                             continue;
                         };
@@ -141,7 +145,7 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
                     },
                     C2SMessage::Unsub(uuid) => {
                         debug!("[WebSocket{}] C2S : Unsub", owner.name());
-                        // Отбрасываю Unsub на самого себя
+                        // Rejecting UnSub to itself
                         if uuid == owner.0.clone().unwrap().uuid {
                             continue;
                         };
@@ -157,6 +161,7 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
                     warn!("[WebSocket{}] Send error! Connection terminated!", owner.name());
                     if let Some(u) = owner.0 {
                         state.broadcasts.remove(&u.uuid);
+                        state.authenticated.remove(&u.uuid);
                     }
                     return;
                 }
@@ -170,6 +175,7 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
                         warn!("[WebSocketSubscriber{}] Send error! Connection terminated!", owner.name());
                         if let Some(u) = owner.0 {
                             state.broadcasts.remove(&u.uuid);
+                            state.authenticated.remove(&u.uuid);
                         }
                         return;
                     }

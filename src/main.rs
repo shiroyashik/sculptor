@@ -68,6 +68,10 @@ impl Authenticated {
     pub fn contains_token(&self, token: &String) -> bool {
         self.user_data.contains_key(token)
     }
+    pub fn remove(&self, uuid: &Uuid) {
+        let token = self.uuid.remove(uuid).unwrap().1;
+        self.user_data.remove(&token);
+    }
 }
 
 #[derive(Debug, Clone)]
