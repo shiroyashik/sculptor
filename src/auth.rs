@@ -46,9 +46,9 @@ async fn verify( // Second stage of authentication
         // let link = state.authenticated_link.lock().await; // // Реализация поиска пользователя в HashMap по UUID
         authenticated.insert(uuid, server_id.clone(), crate::Userinfo { username, uuid, auth_system });
         // link.insert(uuid, crate::AuthenticatedLink(server_id.clone())); // Реализация поиска пользователя в HashMap по UUID
-        return format!("{server_id}")
+        server_id.to_string()
     } else {
-        return String::from("failed to verify")
+        String::from("failed to verify")
     }
 }
 
@@ -60,15 +60,15 @@ pub async fn status(
         Some(token) => {
             if state.authenticated.contains_token(&token) {
                 // format!("ok") // 200
-                (StatusCode::OK, format!("ok")).into_response()
+                (StatusCode::OK, "ok".to_string()).into_response()
             } else {
                 // format!("unauthorized") // 401
-                (StatusCode::UNAUTHORIZED, format!("unauthorized")).into_response()
+                (StatusCode::UNAUTHORIZED, "unauthorized".to_string()).into_response()
             }
         },
         None => {
             // format!("bad request") // 400
-            (StatusCode::BAD_REQUEST, format!("bad request")).into_response()
+            (StatusCode::BAD_REQUEST, "bad request".to_string()).into_response()
         },
     }
 }

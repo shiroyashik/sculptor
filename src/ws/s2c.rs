@@ -16,7 +16,7 @@ pub enum S2CMessage<'a> {
 impl<'a> TryFrom<&'a [u8]> for S2CMessage<'a> {
     type Error = MessageLoadError;
     fn try_from(buf: &'a [u8]) -> Result<Self, <Self as TryFrom<&'a [u8]>>::Error> {
-        if buf.len() == 0 {
+        if buf.is_empty() {
             Err(MessageLoadError::BadLength("S2CMessage", 1, false, 0))
         } else {
             use MessageLoadError::*;
@@ -43,9 +43,7 @@ impl<'a> TryFrom<&'a [u8]> for S2CMessage<'a> {
                 }
                 2 => {
                     if buf.len() == 17 {
-                        Ok(Event(Uuid::from_bytes(
-                            (&buf[1..17]).try_into().unwrap(),
-                        )))
+                        Ok(Event(Uuid::from_bytes((&buf[1..17]).try_into().unwrap())))
                     } else {
                         Err(BadLength("S2CMessage::Event", 17, true, buf.len()))
                     }
@@ -58,26 +56,25 @@ impl<'a> TryFrom<&'a [u8]> for S2CMessage<'a> {
         }
     }
 }
-impl<'a> Into<Box<[u8]>> for S2CMessage<'a> {
-    fn into(self) -> Box<[u8]> {
+impl<'a> From<S2CMessage<'a>> for Box<[u8]> {
+    fn from(val: S2CMessage<'a>) -> Self {
         use std::iter::once;
         use S2CMessage::*;
-        match self {
+        match val {
             Auth => Box::new([0]),
             Ping(u, i, s, d) => once(1)
                 .chain(u.into_bytes().iter().copied())
                 .chain(i.to_be_bytes().iter().copied())
                 .chain(once(if s { 1 } else { 0 }))
-                .chain(d.into_iter().copied())
+                .chain(d.iter().copied())
                 .collect(),
             Event(u) => once(2).chain(u.into_bytes().iter().copied()).collect(),
             Toast(t, h, d) => once(3)
                 .chain(once(t))
-                .chain(h.as_bytes().into_iter().copied())
+                .chain(h.as_bytes().iter().copied())
                 .chain(
                     d.into_iter()
-                        .map(|s| once(0).chain(s.as_bytes().into_iter().copied()))
-                        .flatten(),
+                        .flat_map(|s| once(0).chain(s.as_bytes().iter().copied())),
                 )
                 .collect(),
             Chat(c) => once(4).chain(c.as_bytes().iter().copied()).collect(),

@@ -1,15 +1,17 @@
 use anyhow::Result;
 use axum::{
-    middleware::from_extractor, routing::{delete, get, post, put}, Router
+    middleware::from_extractor,
+    routing::{delete, get, post, put},
+    Router,
 };
 use chrono::prelude::*;
 use dashmap::DashMap;
 use fern::colors::{Color, ColoredLevelConfig};
 use log::info;
-use uuid::Uuid;
 use std::sync::Arc;
 use tokio::sync::{broadcast, Mutex};
 use tower_http::trace::TraceLayer;
+use uuid::Uuid;
 
 // WebSocket worker
 mod ws;
@@ -38,7 +40,6 @@ pub struct Userinfo {
     username: String,
     uuid: Uuid,
     auth_system: api_auth::AuthSystem,
-
 }
 
 #[derive(Debug, Clone)]
@@ -49,18 +50,27 @@ struct Authenticated {
 
 impl Authenticated {
     fn new() -> Self {
-        Self { user_data: DashMap::new(), uuid: DashMap::new() }
+        Self {
+            user_data: DashMap::new(),
+            uuid: DashMap::new(),
+        }
     }
     pub fn insert(&self, uuid: Uuid, token: String, userinfo: Userinfo) -> Option<Userinfo> {
         self.uuid.insert(uuid, token.clone());
         self.user_data.insert(token, userinfo)
     }
-    pub fn get(&self, token: &String) -> Option<dashmap::mapref::one::Ref<'_, std::string::String, Userinfo>> {
+    pub fn get(
+        &self,
+        token: &String,
+    ) -> Option<dashmap::mapref::one::Ref<'_, std::string::String, Userinfo>> {
         self.user_data.get(token)
     }
-    pub fn get_by_uuid(&self, uuid: &Uuid) -> Option<dashmap::mapref::one::Ref<'_, std::string::String, Userinfo>> {
+    pub fn get_by_uuid(
+        &self,
+        uuid: &Uuid,
+    ) -> Option<dashmap::mapref::one::Ref<'_, std::string::String, Userinfo>> {
         if let Some(token) = self.uuid.get(uuid) {
-            self.user_data.get(&token.to_string())
+            self.user_data.get(&token.clone())
         } else {
             None
         }
@@ -121,7 +131,7 @@ async fn main() -> Result<()> {
         broadcasts: Arc::new(DashMap::new()),
         advanced_users: Arc::new(Mutex::new(config.advanced_users)),
     };
-    
+
     // Automatic update of advanced_users while the server is running
     let advanced_users = state.advanced_users.clone();
     tokio::spawn(async move {
@@ -138,42 +148,15 @@ async fn main() -> Result<()> {
     });
 
     let api = Router::new()
-        .nest(
-            "//auth",
-            api_auth::router()
-        )
-        .route(
-            "/limits",
-            get(api_info::limits)
-        ) // TODO:
-        .route(
-            "/version",
-            get(api_info::version),
-        )
-        .route(
-            "/motd",
-            get(|| async { config.motd }),
-        )
-        .route(
-            "/equip",
-            post(api_profile::equip_avatar)
-        )
-        .route(
-            "/:uuid",
-            get(api_profile::user_info),
-        )
-        .route(
-            "/:uuid/avatar",
-            get(api_profile::download_avatar),
-        )
-        .route(
-            "/avatar",
-            put(api_profile::upload_avatar),
-        )
-        .route(
-            "/avatar",
-            delete(api_profile::delete_avatar),
-        ); // delete Avatar
+        .nest("//auth", api_auth::router())
+        .route("/limits", get(api_info::limits)) // TODO:
+        .route("/version", get(api_info::version))
+        .route("/motd", get(|| async { config.motd }))
+        .route("/equip", post(api_profile::equip_avatar))
+        .route("/:uuid", get(api_profile::user_info))
+        .route("/:uuid/avatar", get(api_profile::download_avatar))
+        .route("/avatar", put(api_profile::upload_avatar))
+        .route("/avatar", delete(api_profile::delete_avatar)); // delete Avatar
 
     let app = Router::new()
         .nest("/api", api)

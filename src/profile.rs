@@ -107,7 +107,7 @@ pub async fn upload_avatar(
         let mut file = BufWriter::new(fs::File::create(&avatar_file).await?);
         io::copy(&mut request_data.as_ref(), &mut file).await?;
     }
-    Ok(format!("ok"))
+    Ok("ok".to_string())
 }
 
 pub async fn equip_avatar(
@@ -119,7 +119,7 @@ pub async fn equip_avatar(
     if state.broadcasts.get(&uuid).unwrap().send(S2CMessage::Event(uuid).to_vec()).is_err() {
         warn!("[WebSocket] Failed to send Event! Maybe there is no one to send")  // FIXME: Засунуть в Handler
     };
-    format!("ok")
+    "ok".to_string()
 }
 
 pub async fn delete_avatar(
@@ -136,5 +136,5 @@ pub async fn delete_avatar(
         fs::remove_file(avatar_file).await?;
     }
     // let avatar_file = format!("avatars/{}.moon",user_info.uuid);
-    Ok(format!("ok"))
+    Ok("ok".to_string())
 }

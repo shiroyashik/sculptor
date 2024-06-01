@@ -15,7 +15,7 @@ pub enum C2SMessage<'a> {
 impl<'a> TryFrom<&'a [u8]> for C2SMessage<'a> {
     type Error = MessageLoadError;
     fn try_from(buf: &'a [u8]) -> Result<Self, <Self as TryFrom<&'a [u8]>>::Error> {
-        if buf.len() == 0 {
+        if buf.is_empty() {
             Err(MessageLoadError::BadLength("C2SMessage", 1, false, 0))
         } else {
             match buf[0] {
@@ -73,15 +73,15 @@ impl<'a> TryFrom<&'a [u8]> for C2SMessage<'a> {
         }
     }
 }
-impl<'a> Into<Box<[u8]>> for C2SMessage<'a> {
-    fn into(self) -> Box<[u8]> {
+impl<'a> From<C2SMessage<'a>> for Box<[u8]> {
+    fn from(val: C2SMessage<'a>) -> Self {
         use std::iter;
-        let a: Box<[u8]> = match self {
-            C2SMessage::Token(t) => iter::once(0).chain(t.into_iter().copied()).collect(),
+        let a: Box<[u8]> = match val {
+            C2SMessage::Token(t) => iter::once(0).chain(t.iter().copied()).collect(),
             C2SMessage::Ping(p, s, d) => iter::once(1)
                 .chain(p.to_be_bytes())
                 .chain(iter::once(s.into()))
-                .chain(d.into_iter().copied())
+                .chain(d.iter().copied())
                 .collect(),
             C2SMessage::Sub(s) => iter::once(2).chain(s.into_bytes()).collect(),
             C2SMessage::Unsub(s) => iter::once(3).chain(s.into_bytes()).collect(),

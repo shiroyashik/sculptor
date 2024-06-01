@@ -6,6 +6,8 @@ Implements Ping transmission functionality via Websocket and full avatar upload 
 
 And also a distinctive feature is the possibility of player identification through the third-party authorization system [Ely.By](https://ely.by/)
 
+> This is a personal fork of Sculptor, made to be a workaround for a private server.
+
 ### Running with Docker
 
 You will need an already configured Docker with Traefik (you can use any reverse proxy)

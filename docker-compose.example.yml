@@ -3,6 +3,7 @@ name: sculptor
 services:
   sculptor:
     build: .
+    image: ghcr.io/korewachino/sculptor:latest
     container_name: sculptor
     restart: unless-stopped
     volumes:
