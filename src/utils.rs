@@ -1,10 +1,9 @@
 use std::{fs::File, io::Read};
 
+use base64::prelude::*;
 use rand::{distributions::Alphanumeric, thread_rng, Rng};
 use ring::digest::{self, digest};
 use uuid::Uuid;
-use base64::prelude::*;
-
 
 // Кор функции
 pub fn rand() -> [u8; 50] {
@@ -16,31 +15,34 @@ pub fn rand() -> [u8; 50] {
     }
     nums
 }
-
+//? What is this guy doing
 pub fn bytes_into_string(code: &[u8]) -> String {
-    code.iter().map(|byte| format!("{:02x}", byte)).collect::<String>()
+    // code.iter().map(|byte| format!("{:02x}", byte)).collect::<String>() // ????? Why do you need this? Why not just String::from_utf8()??
+    String::from_utf8(code.to_vec()).unwrap() // Unwrap might be unsafe here...
 }
 // Конец кор функций
 
-
-pub fn _generate_hex_string(length: usize) -> String { // FIXME: Variable doesn't using!
+pub fn _generate_hex_string(length: usize) -> String {
+    // FIXME: Variable doesn't using!
     let rng = thread_rng();
-    let random_bytes: Vec<u8> = rng
-        .sample_iter(&Alphanumeric)
-        .take(length / 2)
-        .collect();
+    let random_bytes: Vec<u8> = rng.sample_iter(&Alphanumeric).take(length / 2).collect();
 
     hex::encode(random_bytes)
 }
 
 pub fn get_correct_array(value: &toml::Value) -> Vec<u8> {
     // let res: Vec<u8>;
-    value.as_array().unwrap().iter().map(move |x| x.as_integer().unwrap() as u8).collect()
+    value
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(move |x| x.as_integer().unwrap() as u8)
+        .collect()
 }
 
 pub fn format_uuid(uuid: &Uuid) -> String {
     // let uuid = Uuid::parse_str(&uuid)?; TODO: Вероятно format_uuid стоит убрать
-        // .map_err(|_| tide::Error::from_str(StatusCode::InternalServerError, "Failed to parse UUID"))?;
+    // .map_err(|_| tide::Error::from_str(StatusCode::InternalServerError, "Failed to parse UUID"))?;
     uuid.as_hyphenated().to_string()
 }
 
