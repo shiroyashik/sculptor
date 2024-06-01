@@ -16,9 +16,27 @@ pub fn rand() -> [u8; 50] {
     nums
 }
 //? What is this guy doing
+#[tracing::instrument]
 pub fn bytes_into_string(code: &[u8]) -> String {
+    // This *might* be the correct way to do it.
+
     // code.iter().map(|byte| format!("{:02x}", byte)).collect::<String>() // ????? Why do you need this? Why not just String::from_utf8()??
-    String::from_utf8_lossy(code).to_string()
+    // So we need to turn each byte into a string with a 2-digit hexadecimal representation apparently...
+
+    // hex::encode_to_slice(input, output)
+
+    let res = code.iter().fold(String::new(), |mut acc, byte| {
+        acc.push_str(&format!("{:02x}", byte));
+        acc
+    }); // This is the same as the above, but with a fold instead of a map
+
+
+    // Can we do this with hex::encode instead?
+
+
+    res
+
+    // String::from_utf8_lossy(code).to_string() // Tried this, causes corrupted string
 }
 // Конец кор функций
 
