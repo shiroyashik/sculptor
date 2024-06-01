@@ -1,17 +1,26 @@
 use std::sync::Arc;
 
-use axum::{extract::{ws::{Message, WebSocket}, State, WebSocketUpgrade}, response::Response};
+use axum::{
+    extract::{
+        ws::{Message, WebSocket},
+        State, WebSocketUpgrade,
+    },
+    response::Response,
+};
 use dashmap::DashMap;
 use log::{debug, error, info, trace, warn};
-use tokio::sync::{broadcast::{self, Receiver}, mpsc, Notify};
+use tokio::sync::{
+    broadcast::{self, Receiver},
+    mpsc, Notify,
+};
 use uuid::Uuid;
 
-use crate::{ws::{C2SMessage, S2CMessage}, AppState};
+use crate::{
+    ws::{C2SMessage, S2CMessage},
+    AppState,
+};
 
-pub async fn handler(
-    ws: WebSocketUpgrade,
-    State(state): State<AppState>,
-) -> Response {
+pub async fn handler(ws: WebSocketUpgrade, State(state): State<AppState>) -> Response {
     ws.on_upgrade(|socket| handle_socket(socket, state))
 }
 
@@ -66,7 +75,7 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
                 // Next is the code for processing msg
                 let msg_vec = msg.clone().into_data();
                 let msg_array = msg_vec.as_slice();
-                
+
                 let newmsg = match C2SMessage::try_from(msg_array) {
                     Ok(data) => data,
                     Err(e) => {
@@ -78,9 +87,9 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
                         return;
                     },
                 };
-        
+
                 debug!("[WebSocket{}] Raw: {newmsg:?}", owner.name());
-        
+
                 match newmsg {
                     C2SMessage::Token(token) => {
                     debug!("[WebSocket{}] C2S : Token", owner.name());
@@ -127,7 +136,7 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
                         if uuid == owner.0.clone().unwrap().uuid {
                             continue;
                         };
-        
+
                         let rx =  match state.broadcasts.get(&uuid) {
                             Some(rx) => rx.to_owned().subscribe(),
                             None => {
@@ -154,7 +163,7 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
                         continue;
                     },
                 }
-        
+
                 // Sending message
                 debug!("[WebSocket{}] Answering: {msg:?}", owner.name());
                 if socket.send(msg).await.is_err() {
@@ -185,7 +194,11 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
     }
 }
 
-async fn subscribe(socket: mpsc::Sender<Vec<u8>>, mut rx: Receiver<Vec<u8>>, shutdown: Arc<Notify>) {
+async fn subscribe(
+    socket: mpsc::Sender<Vec<u8>>,
+    mut rx: Receiver<Vec<u8>>,
+    shutdown: Arc<Notify>,
+) {
     loop {
         tokio::select! {
             _ = shutdown.notified() => {
@@ -204,5 +217,8 @@ async fn subscribe(socket: mpsc::Sender<Vec<u8>>, mut rx: Receiver<Vec<u8>>, shu
 
 fn into_s2c_ping(buf: Vec<u8>, uuid: Uuid) -> Vec<u8> {
     use std::iter::once;
-    once(1).chain(uuid.into_bytes().iter().copied()).chain(buf.as_slice()[1..].iter().copied()).collect()
+    once(1)
+        .chain(uuid.into_bytes().iter().copied())
+        .chain(buf.as_slice()[1..].iter().copied())
+        .collect()
 }

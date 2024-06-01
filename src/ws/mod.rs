@@ -1,9 +1,9 @@
 mod c2s;
-mod s2c;
-mod handler;
 mod errors;
+mod handler;
+mod s2c;
 
 pub use c2s::C2SMessage;
-pub use s2c::S2CMessage;
-pub use handler::handler;
 pub use errors::MessageLoadError;
+pub use handler::handler;
+pub use s2c::S2CMessage;

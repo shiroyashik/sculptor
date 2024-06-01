@@ -1,10 +1,17 @@
-use anyhow::anyhow;
-use axum::{async_trait, debug_handler, extract::{FromRequestParts, Query, State}, http::{request::Parts, StatusCode}, response::{IntoResponse, Response}, routing::get, Router};
-use log::{debug, info, trace};
-use serde::Deserialize;
-use ring::digest::{self, digest};
-use uuid::Uuid;
 use crate::utils::*;
+use anyhow::anyhow;
+use axum::{
+    async_trait, debug_handler,
+    extract::{FromRequestParts, Query, State},
+    http::{request::Parts, StatusCode},
+    response::{IntoResponse, Response},
+    routing::get,
+    Router,
+};
+use log::{debug, info, trace};
+use ring::digest::{self, digest};
+use serde::Deserialize;
+use uuid::Uuid;
 
 use crate::AppState;
 
@@ -14,27 +21,33 @@ pub fn router() -> Router<AppState> {
         .route("/verify", get(verify))
 }
 
-
 // Web
 #[derive(Deserialize)]
-struct Id {username: String}
+struct Id {
+    username: String,
+}
 
 #[debug_handler]
-async fn id( // First stage of authentication
+async fn id(
+    // First stage of authentication
     Query(query): Query<Id>,
     State(state): State<AppState>,
 ) -> String {
-    let server_id = bytes_into_string(&digest(&digest::SHA1_FOR_LEGACY_USE_ONLY, &rand()).as_ref()[0 .. 20]);
+    let server_id =
+        bytes_into_string(&digest(&digest::SHA1_FOR_LEGACY_USE_ONLY, &rand()).as_ref()[0..20]);
     let state = state.pending;
     state.insert(server_id.clone(), query.username);
     server_id
 }
 
 #[derive(Deserialize)]
-struct Verify {id: String}
+struct Verify {
+    id: String,
+}
 
 #[debug_handler]
-async fn verify( // Second stage of authentication
+async fn verify(
+    // Second stage of authentication
     Query(query): Query<Verify>,
     State(state): State<AppState>,
 ) -> String {
@@ -44,7 +57,15 @@ async fn verify( // Second stage of authentication
         info!("[Authorization] {username} logged in using {auth_system:?}");
         let authenticated = state.authenticated;
         // let link = state.authenticated_link.lock().await; // // Реализация поиска пользователя в HashMap по UUID
-        authenticated.insert(uuid, server_id.clone(), crate::Userinfo { username, uuid, auth_system });
+        authenticated.insert(
+            uuid,
+            server_id.clone(),
+            crate::Userinfo {
+                username,
+                uuid,
+                auth_system,
+            },
+        );
         // link.insert(uuid, crate::AuthenticatedLink(server_id.clone())); // Реализация поиска пользователя в HashMap по UUID
         server_id.to_string()
     } else {
@@ -52,10 +73,7 @@ async fn verify( // Second stage of authentication
     }
 }
 
-pub async fn status(
-    Token(token): Token,
-    State(state): State<AppState>,
-) -> Response {
+pub async fn status(Token(token): Token, State(state): State<AppState>) -> Response {
     match token {
         Some(token) => {
             if state.authenticated.contains_token(&token) {
@@ -65,15 +83,14 @@ pub async fn status(
                 // format!("unauthorized") // 401
                 (StatusCode::UNAUTHORIZED, "unauthorized".to_string()).into_response()
             }
-        },
+        }
         None => {
             // format!("bad request") // 400
             (StatusCode::BAD_REQUEST, "bad request".to_string()).into_response()
-        },
+        }
     }
 }
 // Web End
-
 
 // It's an extractor that pulls a token from the Header.
 #[derive(PartialEq, Debug)]
@@ -117,7 +134,10 @@ impl ToString for AuthSystem {
     }
 }
 
-pub async fn has_joined(server_id: &str, username: &str) -> anyhow::Result<Option<(Uuid, AuthSystem)>> {
+pub async fn has_joined(
+    server_id: &str,
+    username: &str,
+) -> anyhow::Result<Option<(Uuid, AuthSystem)>> {
     let client = reqwest::Client::new();
     tokio::select! {
         Ok(Some(res)) = async {

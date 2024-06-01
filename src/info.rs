@@ -1,7 +1,6 @@
 use axum::Json;
 use serde_json::{json, Value};
 
-
 pub async fn version() -> Json<Value> {
     Json(json!({
         "release": "0.1.4",

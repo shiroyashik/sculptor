@@ -11,7 +11,6 @@ pub struct Config {
     pub advanced_users: Table,
 }
 
-
 impl Config {
     pub fn parse(path: PathBuf) -> Self {
         let mut file = std::fs::File::open(path).expect("Access denied or file doesn't exists!");
