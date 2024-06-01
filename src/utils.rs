@@ -18,7 +18,7 @@ pub fn rand() -> [u8; 50] {
 //? What is this guy doing
 pub fn bytes_into_string(code: &[u8]) -> String {
     // code.iter().map(|byte| format!("{:02x}", byte)).collect::<String>() // ????? Why do you need this? Why not just String::from_utf8()??
-    String::from_utf8(code.to_vec()).unwrap() // Unwrap might be unsafe here...
+    String::from_utf8_lossy(code).to_string()
 }
 // Конец кор функций
 
