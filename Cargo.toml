@@ -35,6 +35,7 @@ rand = "0.8.5"
 axum = { version = "0.7.5", features = ["ws", "macros", "http2"] }
 tower-http = { version = "0.5.2", features = ["trace"] }
 tokio = { version = "1.37.0", features = ["full"] }
+tracing-subscriber = { version = "0.3.18", features = ["env-filter", "chrono"] }
 
 # TODO: Sort it!
 # TODO: Replace Vec<u8> and &[u8] by Bytes

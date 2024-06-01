@@ -98,28 +98,12 @@ pub struct AppState {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    println!("The Sculptor");
-    let colors = ColoredLevelConfig::new()
-        .info(Color::Green)
-        .debug(Color::Magenta)
-        .trace(Color::Cyan)
-        .warn(Color::Yellow);
-    fern::Dispatch::new()
-        .format(move |out, message, record| {
-            out.finish(format_args!(
-                "[{} {} {}] {}",
-                Local::now().to_rfc3339_opts(SecondsFormat::Millis, true),
-                colors.color(record.level()),
-                record.target(),
-                message
-            ))
-        })
-        .level(log::LevelFilter::Info)
-        // .level_for("hyper", log::LevelFilter::Info)
-        .chain(std::io::stdout())
-        .chain(fern::log_file("output.log")?)
-        .apply()?;
+    tracing_subscriber::fmt::fmt()
+        .with_env_filter("tracing")
+        .pretty()
+        .init();
 
+    info!("The Sculptor MMSI edition v{}", env!("CARGO_PKG_VERSION"));
     // Config
     let config = config::Config::parse("Config.toml".into());
     let listen = config.listen.as_str();

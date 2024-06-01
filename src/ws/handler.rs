@@ -206,10 +206,21 @@ async fn subscribe(
                 return;
             }
             msg = rx.recv() => {
-                if socket.send(msg.unwrap()).await.is_err() {
-                    error!("Forced shutdown SUB due error!");
-                    return;
-                };
+
+                let msg = msg.ok();
+
+                if let Some(msg) = msg {
+                    // debug!("[WebSocketSubscriber] Received: {msg}");
+                    if socket.send(msg.clone()).await.is_err() {
+                        error!("Forced shutdown SUB due error!");
+                        return;
+                    };
+                }
+
+                // if socket.send(msg.unwrap()).await.is_err() {
+                //     error!("Forced shutdown SUB due error!");
+                //     return;
+                // };
             }
         }
     }
