@@ -143,40 +143,80 @@ fn get_id_json(json: &serde_json::Value) -> anyhow::Result<Uuid> {
     Ok(uuid)
 }
 
-pub async fn has_joined(
+// Considering dropping ely.by support here, I don't really want to deal with it
+
+#[inline]
+async fn fetch_json(
+    url: &str,
     server_id: &str,
     username: &str,
 ) -> anyhow::Result<Option<(Uuid, AuthSystem)>> {
     let client = reqwest::Client::new();
+    let auth_system = if url.contains("https://sessionserver.mojang.com") {
+        AuthSystem::Mojang
+    } else if url.contains("http://minecraft.ely.by") {
+        AuthSystem::ElyBy
+    } else {
+        return Err(anyhow!("Unknown auth system"));
+    };
+
+    let res = client
+        .get(url)
+        .query(&[("serverId", server_id), ("username", username)])
+        .send()
+        .await?;
+    debug!("{res:?}");
+    match res.status().as_u16() {
+        200 => {
+            let json = serde_json::from_str::<serde_json::Value>(&res.text().await?)?;
+            let uuid = get_id_json(&json)?;
+            Ok(Some((uuid, auth_system)))
+        }
+        401 => Ok(None),
+        _ => Err(anyhow!("Unknown code: {}", res.status().as_u16())),
+    }
+}
+
+pub async fn has_joined(
+    server_id: &str,
+    username: &str,
+) -> anyhow::Result<Option<(Uuid, AuthSystem)>> {
+    // let client = reqwest::Client::new();
+    // tokio::select! {
+    //     Ok(Some(res)) = async {
+    //         let res = client.clone().get(
+    //             format!("http://minecraft.ely.by/session/hasJoined?serverId={server_id}&username={username}")).send().await?;
+    //         debug!("{res:?}");
+    //         match res.status().as_u16() {
+    //             200 => {
+    //                 let json = serde_json::from_str::<serde_json::Value>(&res.text().await?)?;
+    //                 let uuid = get_id_json(&json)?;
+    //                 Ok(Some((uuid, AuthSystem::ElyBy)))
+    //             },
+    //             401 => Ok(None),
+    //             _ => Err(anyhow::anyhow!("Unknown code: {}", res.status().as_u16()))
+    //         }
+    //     } => {Ok(Some(res))}
+    //     Ok(Some(res)) = async {
+    //         let res = client.clone().get(
+    //             format!("https://sessionserver.mojang.com/session/minecraft/hasJoined?serverId={server_id}&username={username}")).send().await?;
+    //         debug!("{res:?}");
+    //         match res.status().as_u16() {
+    //             200 => {
+    //                 let json = serde_json::from_str::<serde_json::Value>(&res.text().await?)?;
+    //                 let uuid = get_id_json(&json)?;
+    //                 Ok(Some((uuid, AuthSystem::Mojang)))
+    //             },
+    //             204 => Ok(None),
+    //             _ => Err(anyhow::anyhow!("Unknown code: {}", res.status().as_u16()))
+    //         }
+    //     } => {Ok(Some(res))}
+    //     else => {Err(anyhow!("Something went wrong in external apis request process"))}
+    // }
+
     tokio::select! {
-        Ok(Some(res)) = async {
-            let res = client.clone().get(
-                format!("http://minecraft.ely.by/session/hasJoined?serverId={server_id}&username={username}")).send().await?;
-            debug!("{res:?}");
-            match res.status().as_u16() {
-                200 => {
-                    let json = serde_json::from_str::<serde_json::Value>(&res.text().await?)?;
-                    let uuid = get_id_json(&json)?;
-                    Ok(Some((uuid, AuthSystem::ElyBy)))
-                },
-                401 => Ok(None),
-                _ => Err(anyhow::anyhow!("Unknown code: {}", res.status().as_u16()))
-            }
-        } => {Ok(Some(res))}
-        Ok(Some(res)) = async {
-            let res = client.clone().get(
-                format!("https://sessionserver.mojang.com/session/minecraft/hasJoined?serverId={server_id}&username={username}")).send().await?;
-            debug!("{res:?}");
-            match res.status().as_u16() {
-                200 => {
-                    let json = serde_json::from_str::<serde_json::Value>(&res.text().await?)?;
-                    let uuid = get_id_json(&json)?;
-                    Ok(Some((uuid, AuthSystem::Mojang)))
-                },
-                204 => Ok(None),
-                _ => Err(anyhow::anyhow!("Unknown code: {}", res.status().as_u16()))
-            }
-        } => {Ok(Some(res))}
+        Ok(Some(res)) = fetch_json("http://minecraft.ely.by/session/hasJoined", server_id, username) => {Ok(Some(res))},
+        Ok(Some(res)) = fetch_json("https://sessionserver.mojang.com/session/minecraft/hasJoined", server_id, username) => {Ok(Some(res))},
         else => {Err(anyhow!("Something went wrong in external apis request process"))}
     }
 }
