@@ -4,9 +4,7 @@ use axum::{
     routing::{delete, get, post, put},
     Router,
 };
-use chrono::prelude::*;
 use dashmap::DashMap;
-use fern::colors::{Color, ColoredLevelConfig};
 use log::info;
 use std::sync::Arc;
 use tokio::sync::{broadcast, Mutex};
@@ -99,13 +97,15 @@ pub struct AppState {
 #[tokio::main]
 async fn main() -> Result<()> {
     tracing_subscriber::fmt::fmt()
-        .with_env_filter("trace")
+        .with_env_filter("trace,axum=info,tower_http=info,tokio=info,tungstenite=info,tokio_tungstenite=info")
         .pretty()
         .init();
 
+    let config_file = std::env::var("CONFIG_PATH").unwrap_or_else(|_| "Config.toml".into());
+
     info!("The Sculptor MMSI edition v{}", env!("CARGO_PKG_VERSION"));
     // Config
-    let config = config::Config::parse("Config.toml".into());
+    let config = config::Config::parse(config_file.clone().into());
     let listen = config.listen.as_str();
 
     // State
@@ -122,7 +122,7 @@ async fn main() -> Result<()> {
         loop {
             tokio::time::sleep(std::time::Duration::from_secs(10)).await;
 
-            let new_config = config::Config::parse("Config.toml".into()).advanced_users;
+            let new_config = config::Config::parse(config_file.clone().into()).advanced_users;
             let mut config = advanced_users.lock().await;
 
             if new_config != *config {
