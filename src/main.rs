@@ -99,7 +99,7 @@ pub struct AppState {
 #[tokio::main]
 async fn main() -> Result<()> {
     tracing_subscriber::fmt::fmt()
-        .with_env_filter("tracing")
+        .with_env_filter("trace")
         .pretty()
         .init();
 
