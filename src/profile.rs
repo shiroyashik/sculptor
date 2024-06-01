@@ -5,7 +5,7 @@ use axum::{
     extract::{Path, State},
     Json,
 };
-use log::{debug, warn};
+use tracing::{debug, warn};
 use serde_json::{json, Value};
 use tokio::{
     fs,
@@ -25,7 +25,7 @@ pub async fn user_info(
     Path(uuid): Path<Uuid>,
     State(state): State<AppState>, // FIXME: Variable doesn't using!
 ) -> Json<Value> {
-    log::info!("Receiving profile information for {}", uuid);
+    tracing::info!("Receiving profile information for {}", uuid);
 
     let formatted_uuid = format_uuid(&uuid);
 
@@ -88,7 +88,7 @@ pub async fn user_info(
 #[debug_handler]
 pub async fn download_avatar(Path(uuid): Path<Uuid>) -> Result<Vec<u8>> {
     let uuid = format_uuid(&uuid);
-    log::info!("Requesting an avatar: {}", uuid);
+    tracing::info!("Requesting an avatar: {}", uuid);
     let mut file = if let Ok(file) = fs::File::open(format!("avatars/{}.moon", uuid)).await {
         file
     } else {
@@ -118,7 +118,7 @@ pub async fn upload_avatar(
     };
 
     if let Some(user_info) = state.authenticated.get(&token) {
-        log::info!(
+        tracing::info!(
             "{} ({}) trying to upload an avatar",
             user_info.uuid,
             user_info.username
@@ -152,7 +152,7 @@ pub async fn delete_avatar(Token(token): Token, State(state): State<AppState>) -
         None => http_error_ret!(UNAUTHORIZED, "Authentication error!"),
     };
     if let Some(user_info) = state.authenticated.get(&token) {
-        log::info!(
+        tracing::info!(
             "{} ({}) is trying to delete the avatar",
             user_info.uuid,
             user_info.username

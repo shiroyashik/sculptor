@@ -8,9 +8,9 @@ use axum::{
     routing::get,
     Router,
 };
-use log::{debug, info, trace};
 use ring::digest::{self, digest};
 use serde::Deserialize;
+use tracing::{debug, info, trace};
 use uuid::Uuid;
 
 use crate::AppState;
@@ -108,7 +108,7 @@ where
             .headers
             .get("token")
             .and_then(|value| value.to_str().ok());
-        trace!("[Extractor Token] Data: {token:?}");
+        trace!(token = ?token);
         match token {
             Some(token) => Ok(Self(Some(token.to_string()))),
             None => Ok(Self(None)),
@@ -134,6 +134,15 @@ impl ToString for AuthSystem {
     }
 }
 
+/// Get UUID from JSON response
+// Written to be reusable so we don't have to specify the same complex code twice
+#[inline]
+fn get_id_json(json: &serde_json::Value) -> anyhow::Result<Uuid> {
+    trace!("json: {json:#?}"); // For debugging, we'll get to this later!
+    let uuid = Uuid::parse_str(json.get("id").unwrap().as_str().unwrap())?;
+    Ok(uuid)
+}
+
 pub async fn has_joined(
     server_id: &str,
     username: &str,
@@ -147,7 +156,7 @@ pub async fn has_joined(
             match res.status().as_u16() {
                 200 => {
                     let json = serde_json::from_str::<serde_json::Value>(&res.text().await?)?;
-                    let uuid = Uuid::parse_str(json["id"].as_str().unwrap())?;
+                    let uuid = get_id_json(&json)?;
                     Ok(Some((uuid, AuthSystem::ElyBy)))
                 },
                 401 => Ok(None),
@@ -161,7 +170,7 @@ pub async fn has_joined(
             match res.status().as_u16() {
                 200 => {
                     let json = serde_json::from_str::<serde_json::Value>(&res.text().await?)?;
-                    let uuid = Uuid::parse_str(json["id"].as_str().unwrap())?;
+                    let uuid = get_id_json(&json)?;
                     Ok(Some((uuid, AuthSystem::Mojang)))
                 },
                 204 => Ok(None),

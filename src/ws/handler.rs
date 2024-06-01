@@ -8,7 +8,7 @@ use axum::{
     response::Response,
 };
 use dashmap::DashMap;
-use log::{debug, error, info, trace, warn};
+use tracing::{debug, error, info, trace, warn};
 use tokio::sync::{
     broadcast::{self, Receiver},
     mpsc, Notify,

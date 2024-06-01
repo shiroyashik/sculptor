@@ -5,10 +5,10 @@ use axum::{
     Router,
 };
 use dashmap::DashMap;
-use log::info;
 use std::sync::Arc;
 use tokio::sync::{broadcast, Mutex};
 use tower_http::trace::TraceLayer;
+use tracing::info;
 use uuid::Uuid;
 
 // WebSocket worker
@@ -97,7 +97,9 @@ pub struct AppState {
 #[tokio::main]
 async fn main() -> Result<()> {
     tracing_subscriber::fmt::fmt()
-        .with_env_filter("trace,axum=info,tower_http=info,tokio=info,tungstenite=info,tokio_tungstenite=info")
+        .with_env_filter(
+            "trace,axum=info,tower_http=info,tokio=info,tungstenite=info,tokio_tungstenite=info",
+        )
         .pretty()
         .init();
 
