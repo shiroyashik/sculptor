@@ -102,11 +102,16 @@ async fn health_check() -> String {
 }
 
 
+const LOGGER_ENV: &str = "RUST_LOG";
+
 #[tokio::main]
 async fn main() -> Result<()> {
+    // "trace,axum=info,tower_http=info,tokio=info,tungstenite=info,tokio_tungstenite=info",
+    let logger_env = std::env::var(LOGGER_ENV).unwrap_or_else(|_| "info".into());
+
     tracing_subscriber::fmt::fmt()
         .with_env_filter(
-            "trace,axum=info,tower_http=info,tokio=info,tungstenite=info,tokio_tungstenite=info",
+            logger_env
         )
         .pretty()
         .init();
