@@ -94,6 +94,14 @@ pub struct AppState {
     advanced_users: Arc<Mutex<toml::Table>>,
 }
 
+/// Assert health of the server
+/// If times out, the server is considered dead, so we can return basically anything
+async fn health_check() -> String {
+    // tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+    "ok".to_string()
+}
+
+
 #[tokio::main]
 async fn main() -> Result<()> {
     tracing_subscriber::fmt::fmt()
@@ -148,6 +156,7 @@ async fn main() -> Result<()> {
         .nest("/api", api)
         .route("/api/", get(api_auth::status))
         .route("/ws", get(handler))
+        .route("/health", get(health_check))
         .route_layer(from_extractor::<api_auth::Token>())
         .with_state(state)
         .layer(TraceLayer::new_for_http().on_request(()));
