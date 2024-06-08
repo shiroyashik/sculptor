@@ -1,7 +1,7 @@
 [package]
 name = "sculptor"
 authors = ["Shiroyashik <shiroyashik@shsr.ru>"]
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 publish = false
 
@@ -9,7 +9,6 @@ publish = false
 # Logging
 tracing-subscriber = { version = "0.3.18", features = ["env-filter", "chrono"] }
 tracing = "0.1.40"
-# fern = { version = "0.6.2", features = ["colored"] }
 
 # Errors handelers
 anyhow = "1.0.83"
