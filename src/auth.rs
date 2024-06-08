@@ -52,7 +52,7 @@ async fn verify(
     State(state): State<AppState>,
 ) -> String {
     let server_id = query.id.clone();
-    let username = state.pending.remove(&server_id).unwrap().1;
+    let username = state.pending.remove(&server_id).unwrap().1; // TODO: Add 
     if let Some((uuid, auth_system)) = has_joined(&server_id, &username).await.unwrap() {
         info!("[Authorization] {username} logged in using {auth_system:?}");
         let authenticated = state.authenticated;

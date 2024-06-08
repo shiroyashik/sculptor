@@ -1,8 +1,6 @@
 use anyhow::Result;
 use axum::{
-    middleware::from_extractor,
-    routing::{delete, get, post, put},
-    Router,
+    extract::DefaultBodyLimit, middleware::from_extractor, routing::{delete, get, post, put}, Router
 };
 use dashmap::DashMap;
 use std::sync::Arc;
@@ -94,7 +92,8 @@ pub struct AppState {
     config: Arc<Mutex<config::Config>>,
 }
 
-const LOGGER_ENV: &str = "RUST_LOG";
+const LOGGER_ENV: &'static str = "RUST_LOG";
+const SCULPTOR_VERSION: &'static str = env!("CARGO_PKG_VERSION");
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -110,7 +109,7 @@ async fn main() -> Result<()> {
 
     let config_file = std::env::var("CONFIG_PATH").unwrap_or_else(|_| "Config.toml".into());
 
-    info!("The Sculptor v{}", env!("CARGO_PKG_VERSION"));
+    info!("The Sculptor v{}", SCULPTOR_VERSION);
     // Config
     let config = Arc::new(Mutex::new(config::Config::parse(config_file.clone().into())));
     let listen = config.lock().await.listen.clone();
@@ -139,6 +138,7 @@ async fn main() -> Result<()> {
         }
     });
 
+    let max_body_size = state.config.clone().lock().await.limitations.max_avatar_size as usize;
     let api = Router::new()
         .nest("//auth", api_auth::router())
         .route("/limits", get(api_info::limits))
@@ -146,15 +146,15 @@ async fn main() -> Result<()> {
         .route("/motd", get(api_info::motd))
         .route("/equip", post(api_profile::equip_avatar))
         .route("/:uuid", get(api_profile::user_info))
-        .route("/:uuid/avatar", get(api_profile::download_avatar))
-        .route("/avatar", put(api_profile::upload_avatar))
+        .route("/:uuid/avatar", get(api_profile::download_avatar).layer(DefaultBodyLimit::max(max_body_size)))
+        .route("/avatar", put(api_profile::upload_avatar).layer(DefaultBodyLimit::max(max_body_size)))
         .route("/avatar", delete(api_profile::delete_avatar));
 
     let app = Router::new()
         .nest("/api", api)
         .route("/api/", get(api_auth::status))
         .route("/ws", get(handler))
-        .route("/health", get(api_info::health_check))
+        .route("/health", get(|| async { "ok" }))
         .route_layer(from_extractor::<api_auth::Token>())
         .with_state(state)
         .layer(TraceLayer::new_for_http().on_request(()));

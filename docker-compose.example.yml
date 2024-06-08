@@ -5,6 +5,12 @@ services:
     # build: .
     image: ghcr.io/shiroyashik/sculptor:latest
     container_name: sculptor
+    healthcheck:
+      test: wget --no-verbose --tries=1 --spider http://sculptor:6665/health || exit 1
+      interval: 5s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
     restart: unless-stopped
     volumes:
       - ./Config.toml:/app/Config.toml:ro

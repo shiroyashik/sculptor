@@ -3,12 +3,6 @@ use serde_json::{json, Value};
 
 use crate::AppState;
 
-/// Assert health of the server
-/// If times out, the server is considered dead, so we can return basically anything
-pub async fn health_check() -> String {
-    "ok".to_string()
-}
-
 pub async fn version() -> Json<Value> {
     Json(json!({
         "release": "0.1.4",
