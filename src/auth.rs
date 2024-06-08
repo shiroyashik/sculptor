@@ -56,7 +56,6 @@ async fn verify(
     if let Some((uuid, auth_system)) = has_joined(&server_id, &username).await.unwrap() {
         info!("[Authorization] {username} logged in using {auth_system:?}");
         let authenticated = state.authenticated;
-        // let link = state.authenticated_link.lock().await; // // Реализация поиска пользователя в HashMap по UUID
         authenticated.insert(
             uuid,
             server_id.clone(),
@@ -66,7 +65,6 @@ async fn verify(
                 auth_system,
             },
         );
-        // link.insert(uuid, crate::AuthenticatedLink(server_id.clone())); // Реализация поиска пользователя в HashMap по UUID
         server_id.to_string()
     } else {
         String::from("failed to verify")
@@ -135,15 +133,12 @@ impl ToString for AuthSystem {
 }
 
 /// Get UUID from JSON response
-// Written to be reusable so we don't have to specify the same complex code twice
 #[inline]
 fn get_id_json(json: &serde_json::Value) -> anyhow::Result<Uuid> {
     trace!("json: {json:#?}"); // For debugging, we'll get to this later!
     let uuid = Uuid::parse_str(json.get("id").unwrap().as_str().unwrap())?;
     Ok(uuid)
 }
-
-// Considering dropping ely.by support here, I don't really want to deal with it
 
 #[inline]
 async fn fetch_json(
@@ -181,39 +176,6 @@ pub async fn has_joined(
     server_id: &str,
     username: &str,
 ) -> anyhow::Result<Option<(Uuid, AuthSystem)>> {
-    // let client = reqwest::Client::new();
-    // tokio::select! {
-    //     Ok(Some(res)) = async {
-    //         let res = client.clone().get(
-    //             format!("http://minecraft.ely.by/session/hasJoined?serverId={server_id}&username={username}")).send().await?;
-    //         debug!("{res:?}");
-    //         match res.status().as_u16() {
-    //             200 => {
-    //                 let json = serde_json::from_str::<serde_json::Value>(&res.text().await?)?;
-    //                 let uuid = get_id_json(&json)?;
-    //                 Ok(Some((uuid, AuthSystem::ElyBy)))
-    //             },
-    //             401 => Ok(None),
-    //             _ => Err(anyhow::anyhow!("Unknown code: {}", res.status().as_u16()))
-    //         }
-    //     } => {Ok(Some(res))}
-    //     Ok(Some(res)) = async {
-    //         let res = client.clone().get(
-    //             format!("https://sessionserver.mojang.com/session/minecraft/hasJoined?serverId={server_id}&username={username}")).send().await?;
-    //         debug!("{res:?}");
-    //         match res.status().as_u16() {
-    //             200 => {
-    //                 let json = serde_json::from_str::<serde_json::Value>(&res.text().await?)?;
-    //                 let uuid = get_id_json(&json)?;
-    //                 Ok(Some((uuid, AuthSystem::Mojang)))
-    //             },
-    //             204 => Ok(None),
-    //             _ => Err(anyhow::anyhow!("Unknown code: {}", res.status().as_u16()))
-    //         }
-    //     } => {Ok(Some(res))}
-    //     else => {Err(anyhow!("Something went wrong in external apis request process"))}
-    // }
-
     tokio::select! {
         Ok(Some(res)) = fetch_json("http://minecraft.ely.by/session/hasJoined", server_id, username) => {Ok(Some(res))},
         Ok(Some(res)) = fetch_json("https://sessionserver.mojang.com/session/minecraft/hasJoined", server_id, username) => {Ok(Some(res))},

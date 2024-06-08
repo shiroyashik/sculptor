@@ -90,17 +90,9 @@ pub struct AppState {
     authenticated: Arc<Authenticated>, // <SHA1 serverId, Userinfo> NOTE: In the future, try it in a separate LockRw branch
     // Ping broadcasts for WebSocket connections
     broadcasts: Arc<DashMap<Uuid, broadcast::Sender<Vec<u8>>>>,
-    // Advanced configured users
-    advanced_users: Arc<Mutex<toml::Table>>,
+    // Current configuration
+    config: Arc<Mutex<config::Config>>,
 }
-
-/// Assert health of the server
-/// If times out, the server is considered dead, so we can return basically anything
-async fn health_check() -> String {
-    // tokio::time::sleep(std::time::Duration::from_secs(5)).await;
-    "ok".to_string()
-}
-
 
 const LOGGER_ENV: &str = "RUST_LOG";
 
@@ -118,29 +110,30 @@ async fn main() -> Result<()> {
 
     let config_file = std::env::var("CONFIG_PATH").unwrap_or_else(|_| "Config.toml".into());
 
-    info!("The Sculptor MMSI edition v{}", env!("CARGO_PKG_VERSION"));
+    info!("The Sculptor v{}", env!("CARGO_PKG_VERSION"));
     // Config
-    let config = config::Config::parse(config_file.clone().into());
-    let listen = config.listen.as_str();
+    let config = Arc::new(Mutex::new(config::Config::parse(config_file.clone().into())));
+    let listen = config.lock().await.listen.clone();
 
     // State
     let state = AppState {
         pending: Arc::new(DashMap::new()),
         authenticated: Arc::new(Authenticated::new()),
         broadcasts: Arc::new(DashMap::new()),
-        advanced_users: Arc::new(Mutex::new(config.advanced_users)),
+        config: config,
     };
 
-    // Automatic update of advanced_users while the server is running
-    let advanced_users = state.advanced_users.clone();
+    // Automatic update of configuration while the server is running
+    let config_update = state.config.clone();
     tokio::spawn(async move {
         loop {
             tokio::time::sleep(std::time::Duration::from_secs(10)).await;
 
-            let new_config = config::Config::parse(config_file.clone().into()).advanced_users;
-            let mut config = advanced_users.lock().await;
+            let new_config = config::Config::parse(config_file.clone().into());
+            let mut config = config_update.lock().await;
 
             if new_config != *config {
+                info!("Server configuration modification detected!");
                 *config = new_config;
             }
         }
@@ -148,20 +141,20 @@ async fn main() -> Result<()> {
 
     let api = Router::new()
         .nest("//auth", api_auth::router())
-        .route("/limits", get(api_info::limits)) // TODO:
+        .route("/limits", get(api_info::limits))
         .route("/version", get(api_info::version))
-        .route("/motd", get(|| async { config.motd }))
+        .route("/motd", get(api_info::motd))
         .route("/equip", post(api_profile::equip_avatar))
         .route("/:uuid", get(api_profile::user_info))
         .route("/:uuid/avatar", get(api_profile::download_avatar))
         .route("/avatar", put(api_profile::upload_avatar))
-        .route("/avatar", delete(api_profile::delete_avatar)); // delete Avatar
+        .route("/avatar", delete(api_profile::delete_avatar));
 
     let app = Router::new()
         .nest("/api", api)
         .route("/api/", get(api_auth::status))
         .route("/ws", get(handler))
-        .route("/health", get(health_check))
+        .route("/health", get(api_info::health_check))
         .route_layer(from_extractor::<api_auth::Token>())
         .with_state(state)
         .layer(TraceLayer::new_for_http().on_request(()));

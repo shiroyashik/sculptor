@@ -2,17 +2,22 @@ name: sculptor
 
 services:
   sculptor:
-    build: .
-    image: ghcr.io/korewachino/sculptor:latest
+    # build: .
+    image: ghcr.io/shiroyashik/sculptor:latest
     container_name: sculptor
     restart: unless-stopped
     volumes:
       - ./Config.toml:/app/Config.toml:ro
       - ./avatars:/app/avatars
     ## Recommended for use with reverse proxy.
+    # networks:
+    #   - traefik
     # labels:
     #   - traefik.enable=true
     #   - traefik.http.routers.sculptor.rule=Host(`mc.example.com`)
     #   - traefik.http.routers.sculptor.entrypoints=websecure, web
     #   - traefik.http.routers.sculptor.tls=true
     #   - traefik.http.routers.sculptor.tls.certresolver=production
+# networks:
+#   traefik:
+#     external: true

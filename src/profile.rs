@@ -23,7 +23,7 @@ use crate::{
 #[debug_handler]
 pub async fn user_info(
     Path(uuid): Path<Uuid>,
-    State(state): State<AppState>, // FIXME: Variable doesn't using!
+    State(state): State<AppState>,
 ) -> Json<Value> {
     tracing::info!("Receiving profile information for {}", uuid);
 
@@ -47,10 +47,10 @@ pub async fn user_info(
         },
         "version": "0.1.4+1.20.1",
         "banned": false,
-        "authSystem": auth_system // add Trust
+        "authSystem": auth_system
     });
 
-    if let Some(settings) = state.advanced_users.lock().await.get(&formatted_uuid) {
+    if let Some(settings) = state.config.lock().await.advanced_users.get(&formatted_uuid) {
         let pride = get_correct_array(settings.get("pride").unwrap());
         let special = get_correct_array(settings.get("special").unwrap());
         let badges = user_info_response
@@ -141,7 +141,7 @@ pub async fn equip_avatar(Token(token): Token, State(state): State<AppState>) ->
         .is_err()
     {
         warn!("[WebSocket] Failed to send Event! Maybe there is no one to send")
-        // FIXME: Засунуть в Handler
+        // TODO: Put into Handler
     };
     "ok".to_string()
 }

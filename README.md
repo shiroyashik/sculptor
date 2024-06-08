@@ -6,8 +6,6 @@ Implements Ping transmission functionality via Websocket and full avatar upload 
 
 And also a distinctive feature is the possibility of player identification through the third-party authorization system [Ely.By](https://ely.by/)
 
-> This is a personal fork of Sculptor, made to be a workaround for a private server.
-
 ### Running with Docker
 
 You will need an already configured Docker with Traefik (you can use any reverse proxy)
@@ -28,8 +26,13 @@ To do this, you will need to reverse proxy port 6665 to your domain with SSL
 3. Set up your reverse proxy server
 4. `cargo run`
 
-### TODO:
-- [ ] Realization of storing profiles in the database
-- [ ] Frontend for moderation
-- [ ] Autonomous working without reverse proxy server
-- [ ] and many other...
+### Public server
+
+I'm keeping the public server running at the moment!
+You can use it if running your own Sculptor instance is difficult for you.
+
+> figura.shsr.ru
+
+For reasons beyond my control, the server is not available in some countries.
+
+[Check server availability](https://figura.shsr.ru/health)

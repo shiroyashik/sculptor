@@ -40,6 +40,10 @@ motd = """
 ]
 """
 
+[limitations]
+maxAvatarSize = 100000
+maxAvatars = 10
+
 # Shiroyashik
 [advancedUsers.66004548-4de5-49de-bade-9c3933d8eb97]
 special = [0,0,0,1,0,0] # 6

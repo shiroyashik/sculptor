@@ -5,7 +5,7 @@ use rand::{distributions::Alphanumeric, thread_rng, Rng};
 use ring::digest::{self, digest};
 use uuid::Uuid;
 
-// Кор функции
+// Core functions
 pub fn rand() -> [u8; 50] {
     let mut rng = thread_rng();
     let distr = rand::distributions::Uniform::new_inclusive(0, 255);
@@ -15,6 +15,7 @@ pub fn rand() -> [u8; 50] {
     }
     nums
 }
+
 //? What is this guy doing
 #[tracing::instrument]
 pub fn bytes_into_string(code: &[u8]) -> String {
@@ -27,7 +28,7 @@ pub fn bytes_into_string(code: &[u8]) -> String {
 
     // String::from_utf8_lossy(code).to_string() // Tried this, causes corrupted string
 }
-// Конец кор функций
+// End of Core functions
 
 pub fn _generate_hex_string(length: usize) -> String {
     // FIXME: Variable doesn't using!

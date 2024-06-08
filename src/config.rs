@@ -3,12 +3,20 @@ use std::{io::Read, path::PathBuf};
 use serde::Deserialize;
 use toml::Table;
 
-#[derive(Deserialize, Clone, Debug)]
+#[derive(Deserialize, Clone, Debug, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Config {
     pub listen: String,
     pub motd: String,
+    pub limitations: Limitations,
     pub advanced_users: Table,
+}
+
+#[derive(Deserialize, Clone, Debug, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct Limitations {
+    pub max_avatar_size: u64,
+    pub max_avatars: u64,
 }
 
 impl Config {

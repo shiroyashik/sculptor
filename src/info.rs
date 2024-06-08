@@ -1,5 +1,13 @@
-use axum::Json;
+use axum::{extract::State, Json};
 use serde_json::{json, Value};
+
+use crate::AppState;
+
+/// Assert health of the server
+/// If times out, the server is considered dead, so we can return basically anything
+pub async fn health_check() -> String {
+    "ok".to_string()
+}
 
 pub async fn version() -> Json<Value> {
     Json(json!({
@@ -8,7 +16,12 @@ pub async fn version() -> Json<Value> {
     }))
 }
 
-pub async fn limits() -> Json<Value> {
+pub async fn motd(State(state): State<AppState>) -> String {
+    state.config.lock().await.motd.clone()
+}
+
+pub async fn limits(State(state): State<AppState>) -> Json<Value> {
+    let state = &state.config.lock().await.limitations;
     Json(json!({
         "rate": {
           "pingSize": 1024,
@@ -18,8 +31,8 @@ pub async fn limits() -> Json<Value> {
           "upload": 1
         },
         "limits": {
-          "maxAvatarSize": 100000,
-          "maxAvatars": 10,
+          "maxAvatarSize": state.max_avatar_size,
+          "maxAvatars": state.max_avatars,
           "allowedBadges": {
             "special": [0,0,0,0,0,0],
             "pride": [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
