@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use axum::{
     extract::DefaultBodyLimit, middleware::from_extractor, routing::{delete, get, post, put}, Router
 };
@@ -6,7 +6,7 @@ use dashmap::DashMap;
 use std::sync::Arc;
 use tokio::sync::{broadcast, Mutex};
 use tower_http::trace::TraceLayer;
-use tracing::info;
+use tracing::{error, info};
 use uuid::Uuid;
 
 // WebSocket worker
@@ -138,7 +138,14 @@ async fn main() -> Result<()> {
         }
     });
 
-    let max_body_size = state.config.clone().lock().await.limitations.max_avatar_size as usize;
+    let max_body_size = {
+        let mbs = state.config.clone().lock().await.limitations.max_avatar_size as usize;
+        if mbs >= 1024 {
+            mbs
+        } else {
+            return Err(anyhow!("maxAvatarSize {mbs} smaller than 1024!"));
+        }
+    };
     let api = Router::new()
         .nest("//auth", api_auth::router())
         .route("/limits", get(api_info::limits))
