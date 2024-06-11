@@ -146,7 +146,7 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
                                 rx
                             },
                         };
-                        // .to_owned().subscribe();
+
                         let shutdown = Arc::new(Notify::new());
                         tokio::spawn(subscribe(mtx.clone(), rx, shutdown.clone()));
                         cutoff.insert(uuid, shutdown);
@@ -206,21 +206,17 @@ async fn subscribe(
                 return;
             }
             msg = rx.recv() => {
-
                 let msg = msg.ok();
 
                 if let Some(msg) = msg {
-                    // debug!("[WebSocketSubscriber] Received: {msg}");
                     if socket.send(msg.clone()).await.is_err() {
-                        error!("Forced shutdown SUB due error!");
+                        error!("Forced shutdown SUB! Reciever closed connection?");
                         return;
                     };
+                } else {
+                    error!("Forced shutdown SUB! Sender closed connection?");
+                    return;
                 }
-
-                // if socket.send(msg.unwrap()).await.is_err() {
-                //     error!("Forced shutdown SUB due error!");
-                //     return;
-                // };
             }
         }
     }
