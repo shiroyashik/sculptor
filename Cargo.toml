@@ -1,7 +1,7 @@
 [package]
 name = "sculptor"
 authors = ["Shiroyashik <shiroyashik@shsr.ru>"]
-version = "0.2.1"
+version = "0.2.2"
 edition = "2021"
 publish = false
 
