@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use axum::{
     extract::DefaultBodyLimit, middleware::from_extractor, routing::{delete, get, post, put}, Router
 };
@@ -6,7 +6,7 @@ use dashmap::DashMap;
 use std::sync::Arc;
 use tokio::sync::{broadcast, Mutex};
 use tower_http::trace::TraceLayer;
-use tracing::{error, info};
+use tracing::{info, trace};
 use uuid::Uuid;
 
 // WebSocket worker
@@ -97,6 +97,7 @@ const SCULPTOR_VERSION: &'static str = env!("CARGO_PKG_VERSION");
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    let _ = dotenvy::dotenv();
     // "trace,axum=info,tower_http=info,tokio=info,tungstenite=info,tokio_tungstenite=info",
     let logger_env = std::env::var(LOGGER_ENV).unwrap_or_else(|_| "info".into());
 
@@ -138,14 +139,6 @@ async fn main() -> Result<()> {
         }
     });
 
-    let max_body_size = {
-        let mbs = state.config.clone().lock().await.limitations.max_avatar_size as usize;
-        if mbs >= 1024 {
-            mbs
-        } else {
-            return Err(anyhow!("maxAvatarSize {mbs} smaller than 1024!"));
-        }
-    };
     let api = Router::new()
         .nest("//auth", api_auth::router())
         .route("/limits", get(api_info::limits))
@@ -153,8 +146,8 @@ async fn main() -> Result<()> {
         .route("/motd", get(api_info::motd))
         .route("/equip", post(api_profile::equip_avatar))
         .route("/:uuid", get(api_profile::user_info))
-        .route("/:uuid/avatar", get(api_profile::download_avatar).layer(DefaultBodyLimit::max(max_body_size)))
-        .route("/avatar", put(api_profile::upload_avatar).layer(DefaultBodyLimit::max(max_body_size)))
+        .route("/:uuid/avatar", get(api_profile::download_avatar).layer(DefaultBodyLimit::disable()))
+        .route("/avatar", put(api_profile::upload_avatar).layer(DefaultBodyLimit::disable()))
         .route("/avatar", delete(api_profile::delete_avatar));
 
     let app = Router::new()

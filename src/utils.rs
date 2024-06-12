@@ -15,19 +15,6 @@ pub fn rand() -> [u8; 50] {
     }
     nums
 }
-
-//? What is this guy doing
-#[tracing::instrument]
-pub fn bytes_into_string(code: &[u8]) -> String {
-    // This *might* be the correct way to do it.
-
-    // code.iter().map(|byte| format!("{:02x}", byte)).collect::<String>() // ????? Why do you need this? Why not just hex::encode?
-    // So we need to turn each byte into a string with a 2-digit hexadecimal representation apparently...
-
-    hex::encode(code) // This is the correct way to do it.
-
-    // String::from_utf8_lossy(code).to_string() // Tried this, causes corrupted string
-}
 // End of Core functions
 
 pub fn _generate_hex_string(length: usize) -> String {
@@ -68,7 +55,7 @@ pub fn calculate_file_sha256(file_path: &str) -> Result<String, std::io::Error> 
     let hash = binding.as_ref();
 
     // Convert the hash to a hexadecimal string
-    let hex_hash = bytes_into_string(hash);
+    let hex_hash = hex::encode(hash);
 
     Ok(hex_hash)
 }

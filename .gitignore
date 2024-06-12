@@ -4,3 +4,4 @@
 output.log
 docker-compose.yml
 Config.toml
+.env

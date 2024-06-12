@@ -1,7 +1,6 @@
 use anyhow_http::{http_error_ret, response::Result};
 use axum::{
     body::Bytes,
-    debug_handler,
     extract::{Path, State},
     Json,
 };
@@ -20,7 +19,6 @@ use crate::{
     AppState,
 };
 
-#[debug_handler]
 pub async fn user_info(
     Path(uuid): Path<Uuid>,
     State(state): State<AppState>,
@@ -85,7 +83,6 @@ pub async fn user_info(
     Json(user_info_response)
 }
 
-#[debug_handler]
 pub async fn download_avatar(Path(uuid): Path<Uuid>) -> Result<Vec<u8>> {
     let uuid = format_uuid(&uuid);
     tracing::info!("Requesting an avatar: {}", uuid);
@@ -104,7 +101,6 @@ pub async fn download_avatar(Path(uuid): Path<Uuid>) -> Result<Vec<u8>> {
     Ok(buffer)
 }
 
-#[debug_handler]
 pub async fn upload_avatar(
     Token(token): Token,
     State(state): State<AppState>,

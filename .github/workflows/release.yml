@@ -1,0 +1,148 @@
+# Stolen from https://github.com/mrjackwills/oxker :D
+name: Release CI
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"
+
+jobs:
+  #################################################
+  ## Cross platform binary build for release page #
+  #################################################
+
+  cross_platform_build:
+    strategy:
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            output_name: linux_x86_64.tar.gz
+
+          - target: x86_64-pc-windows-gnu
+            output_name: windows_x86_64.zip
+
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Install stable rust, and associated tools
+      - name: Install rust
+        uses: dtolnay/rust-toolchain@stable
+
+      # Install cross-rs
+      - name: Install cross
+        run: cargo install cross --git https://github.com/cross-rs/cross
+
+      # Build binary
+      - name: Build
+        run: CROSS_NO_WARNINGS=0 cross build --target ${{ matrix.target }} --release
+      
+      # Create necessary files and directories
+      - name: Create necessary files and directories
+        run: |
+          mkdir -p target/output/avatars
+          cp Config.example.toml target/output/Config.toml
+
+      # Compress the output
+      - name: Compress | windows
+        if: matrix.target == 'x86_64-pc-windows-gnu'
+        run: |
+          cp target/${{ matrix.target }}/release/sculptor.exe target/output
+          zip -jv "./sculptor_${{ matrix.output_name }}" target/output/*
+      # Compress the output
+      - name: Compress | linux
+        if: matrix.target != 'x86_64-pc-windows-gnu'
+        run: |
+          cp target/${{ matrix.target }}/release/sculptor target/output
+          tar -czvf "./sculptor_${{ matrix.output_name }}" -C "target/output" .
+
+      # Upload output for release page
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          if-no-files-found: error
+          name: ${{ matrix.target }}
+          path: sculptor_${{ matrix.output_name }}
+          retention-days: 1
+
+  ###################
+  ## Create release #
+  ###################
+
+  create_release:
+    needs: [cross_platform_build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup | Artifacts
+        uses: actions/download-artifact@v4
+
+      - name: Update Release
+        uses: ncipollo/release-action@v1
+        with:
+          makeLatest: true
+          name: ${{ github.ref_name }}
+          tag: ${{ github.ref }}
+          bodyFile: ".github/release-body.md"
+          token: ${{ secrets.GITHUB_TOKEN }}
+          artifacts: |
+            **/sculptor_*.zip
+            **/sculptor_*.tar.gz
+  ##################
+  ## Cargo publish #
+  ##################
+
+  # cargo_publish:
+  #   needs: [create_release]
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - name: Checkout
+  #       uses: actions/checkout@v4
+
+  #     - name: publish to crates.io
+  #       uses: katyo/publish-crates@v2
+  #       with:
+  #         registry-token: ${{ secrets.CRATES_IO_TOKEN }}
+
+  #########################################
+  ## Build images for Dockerhub & ghcr.io #
+  #########################################
+
+  image_build:
+    needs: [create_release]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # - name: Login to DockerHub
+      #   uses: docker/login-action@v3
+      #   with:
+      #     username: ${{ secrets.DOCKERHUB_USERNAME }}
+      #     password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Write release version to env
+        run: |
+          CURRENT_SEMVER=${GITHUB_REF_NAME}
+          echo "CURRENT_SEMVER=$CURRENT_SEMVER" >> $GITHUB_ENV
+      - uses: docker/setup-buildx-action@v3
+        id: buildx
+        with:
+          install: true
+      - name: Build for Dockerhub & ghcr.io
+        run: |
+          docker build --platform linux/amd64 \
+          -t ghcr.io/${{ github.repository_owner }}/sculptor:latest \
+          -t ghcr.io/${{ github.repository_owner }}/sculptor:${{env.CURRENT_SEMVER}} \
+          --provenance=false --sbom=false \
+          --push \
+          -f Dockerfile .

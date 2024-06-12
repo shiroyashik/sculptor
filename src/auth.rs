@@ -34,7 +34,7 @@ async fn id(
     State(state): State<AppState>,
 ) -> String {
     let server_id =
-        bytes_into_string(&digest(&digest::SHA1_FOR_LEGACY_USE_ONLY, &rand()).as_ref()[0..20]);
+        hex::encode(&digest(&digest::SHA1_FOR_LEGACY_USE_ONLY, &rand()).as_ref()[0..20]);
     let state = state.pending;
     state.insert(server_id.clone(), query.username);
     server_id
