@@ -48,7 +48,7 @@ jobs:
         if: matrix.target == 'x86_64-pc-windows-gnu'
         run: |
           cp target/${{ matrix.target }}/release/sculptor.exe target/output
-          zip -jv "./sculptor_${{ matrix.output_name }}" target/output/*
+          (cd target/output; zip "../../sculptor_${{ matrix.output_name }}" ./*)
       # Compress the output
       - name: Compress | linux
         if: matrix.target != 'x86_64-pc-windows-gnu'

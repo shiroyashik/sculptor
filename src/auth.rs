@@ -10,7 +10,7 @@ use axum::{
 };
 use ring::digest::{self, digest};
 use serde::Deserialize;
-use tracing::{debug, info, trace};
+use tracing::{debug, error, info, trace};
 use uuid::Uuid;
 
 use crate::AppState;
@@ -50,11 +50,18 @@ async fn verify(
     // Second stage of authentication
     Query(query): Query<Verify>,
     State(state): State<AppState>,
-) -> String {
+) -> Response {
     let server_id = query.id.clone();
-    let username = state.pending.remove(&server_id).unwrap().1; // TODO: Add 
-    if let Some((uuid, auth_system)) = has_joined(&server_id, &username).await.unwrap() {
-        info!("[Authorization] {username} logged in using {auth_system:?}");
+    let username = state.pending.remove(&server_id).unwrap().1; // TODO: Add error check
+    let userinfo = match has_joined(&server_id, &username).await {
+        Ok(d) => d,
+        Err(e) => {
+            error!("[Authentication] {e}");
+            return (StatusCode::INTERNAL_SERVER_ERROR, "internal verify error".to_string()).into_response();
+        },
+    };
+    if let Some((uuid, auth_system)) = userinfo {
+        info!("[Authentication] {username} logged in using {auth_system:?}");
         let authenticated = state.authenticated;
         authenticated.insert(
             uuid,
@@ -65,9 +72,10 @@ async fn verify(
                 auth_system,
             },
         );
-        server_id.to_string()
+        (StatusCode::OK, server_id.to_string()).into_response()
     } else {
-        String::from("failed to verify")
+        info!("[Authentication] failed to verify {username}");
+        (StatusCode::BAD_REQUEST, "failed to verify".to_string()).into_response()
     }
 }
 
@@ -75,15 +83,13 @@ pub async fn status(Token(token): Token, State(state): State<AppState>) -> Respo
     match token {
         Some(token) => {
             if state.authenticated.contains_token(&token) {
-                // format!("ok") // 200
                 (StatusCode::OK, "ok".to_string()).into_response()
             } else {
-                // format!("unauthorized") // 401
+
                 (StatusCode::UNAUTHORIZED, "unauthorized".to_string()).into_response()
             }
         }
         None => {
-            // format!("bad request") // 400
             (StatusCode::BAD_REQUEST, "bad request".to_string()).into_response()
         }
     }
@@ -116,7 +122,6 @@ where
 // End Extractor
 
 // Work with external APIs
-
 #[derive(Debug, Clone)]
 pub enum AuthSystem {
     ElyBy,
@@ -177,8 +182,8 @@ pub async fn has_joined(
     username: &str,
 ) -> anyhow::Result<Option<(Uuid, AuthSystem)>> {
     tokio::select! {
-        Ok(Some(res)) = fetch_json("http://minecraft.ely.by/session/hasJoined", server_id, username) => {Ok(Some(res))},
-        Ok(Some(res)) = fetch_json("https://sessionserver.mojang.com/session/minecraft/hasJoined", server_id, username) => {Ok(Some(res))},
+        Ok(res) = fetch_json("http://minecraft.ely.by/session/hasJoined", server_id, username) => {Ok(res)},
+        Ok(res) = fetch_json("https://sessionserver.mojang.com/session/minecraft/hasJoined", server_id, username) => {Ok(res)},
         else => {Err(anyhow!("Something went wrong in external apis request process"))}
     }
 }

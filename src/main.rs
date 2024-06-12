@@ -6,7 +6,7 @@ use dashmap::DashMap;
 use std::sync::Arc;
 use tokio::sync::{broadcast, Mutex};
 use tower_http::trace::TraceLayer;
-use tracing::{info, trace};
+use tracing::info;
 use uuid::Uuid;
 
 // WebSocket worker
