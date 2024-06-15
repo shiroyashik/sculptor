@@ -59,7 +59,7 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
                         info!("[WebSocket{}] Connection successfully closed!", owner.name());
                         if let Some(u) = owner.0 {
                             state.broadcasts.remove(&u.uuid);
-                            state.authenticated.remove(&u.uuid);
+                            state.user_manager.remove(&u.uuid);
                         }
                         return;
                     }
@@ -68,7 +68,7 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
                     debug!("[WebSocket{}] Receive error! Connection terminated!", owner.name());
                     if let Some(u) = owner.0 {
                         state.broadcasts.remove(&u.uuid);
-                        state.authenticated.remove(&u.uuid);
+                        state.user_manager.remove(&u.uuid);
                     }
                     return;
                 };
@@ -82,7 +82,7 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
                         error!("[WebSocket{}] This message is not from Figura! {e:?}", owner.name());
                         if let Some(u) = owner.0 {
                             state.broadcasts.remove(&u.uuid);
-                            state.authenticated.remove(&u.uuid);
+                            state.user_manager.remove(&u.uuid);
                         }
                         return;
                     },
@@ -94,7 +94,7 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
                     C2SMessage::Token(token) => {
                     debug!("[WebSocket{}] C2S : Token", owner.name());
                         let token = String::from_utf8(token.to_vec()).unwrap();
-                        match state.authenticated.get(&token) { // The principle is simple: if there is no token in authenticated, then it's "dirty hacker" :D
+                        match state.user_manager.get(&token) { // The principle is simple: if there is no token in authenticated, then it's "dirty hacker" :D
                             Some(t) => {
                                 //username = t.username.clone();
                                 owner.0 = Some(WSUser { username: t.username.clone(), token, uuid: t.uuid });
@@ -115,7 +115,7 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
                                 debug!("[WebSocket] Tried to log in with {token}"); // Tried to log in with token: {token}
                                 if let Some(u) = owner.0 {
                                     state.broadcasts.remove(&u.uuid);
-                                    state.authenticated.remove(&u.uuid);
+                                    state.user_manager.remove(&u.uuid);
                                 }
                                 return; // TODO: Define the trip code
                             },
@@ -170,7 +170,7 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
                     warn!("[WebSocket{}] Send error! Connection terminated!", owner.name());
                     if let Some(u) = owner.0 {
                         state.broadcasts.remove(&u.uuid);
-                        state.authenticated.remove(&u.uuid);
+                        state.user_manager.remove(&u.uuid);
                     }
                     return;
                 }
@@ -184,7 +184,7 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
                         warn!("[WebSocketSubscriber{}] Send error! Connection terminated!", owner.name());
                         if let Some(u) = owner.0 {
                             state.broadcasts.remove(&u.uuid);
-                            state.authenticated.remove(&u.uuid);
+                            state.user_manager.remove(&u.uuid);
                         }
                         return;
                     }

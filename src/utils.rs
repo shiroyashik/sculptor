@@ -1,9 +1,11 @@
-use std::{fs::File, io::Read};
+use std::{fs::File, io::Read, str::FromStr};
 
 use base64::prelude::*;
 use rand::{distributions::Alphanumeric, thread_rng, Rng};
 use ring::digest::{self, digest};
 use uuid::Uuid;
+
+use crate::auth::{AuthSystem, Userinfo};
 
 // Core functions
 pub fn rand() -> [u8; 50] {
@@ -32,6 +34,22 @@ pub fn get_correct_array(value: &toml::Value) -> Vec<u8> {
         .unwrap()
         .iter()
         .map(move |x| x.as_integer().unwrap() as u8)
+        .collect()
+}
+pub fn collect_advanced_users(value: &toml::Table) -> Vec<(Uuid, Userinfo)> {
+    value
+        .iter()
+        .map( |(uuid, userdata)| {
+            let auth_system = AuthSystem::from_str(userdata.as_table().unwrap().get("authSystem").expect("Can't find authSystem in advancedUser!").as_str().unwrap()).unwrap();
+            let username = userdata.as_table().unwrap().get("username").expect("Can't find username in advancedUser!").as_str().unwrap().to_string();
+            (
+            Uuid::parse_str(uuid).unwrap(),
+            Userinfo { username,
+                uuid: Uuid::parse_str(uuid).unwrap(),
+                auth_system,
+                token: None
+            }
+        )})
         .collect()
 }
 

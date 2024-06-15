@@ -3,6 +3,7 @@ use axum::{
     extract::DefaultBodyLimit, middleware::from_extractor, routing::{delete, get, post, put}, Router
 };
 use dashmap::DashMap;
+use utils::collect_advanced_users;
 use std::sync::Arc;
 use tokio::sync::{broadcast, Mutex};
 use tower_http::trace::TraceLayer;
@@ -15,7 +16,7 @@ use ws::handler;
 
 // API: Auth
 mod auth;
-use auth as api_auth;
+use auth::{self as api_auth, UManager};
 
 // API: Server info
 mod info;
@@ -32,63 +33,16 @@ mod utils;
 mod config;
 
 #[derive(Debug, Clone)]
-pub struct Userinfo {
-    username: String,
-    uuid: Uuid,
-    auth_system: api_auth::AuthSystem,
-}
-
-#[derive(Debug, Clone)]
-struct Authenticated {
-    user_data: DashMap<String, Userinfo>,
-    uuid: DashMap<Uuid, String>,
-}
-
-impl Authenticated {
-    fn new() -> Self {
-        Self {
-            user_data: DashMap::new(),
-            uuid: DashMap::new(),
-        }
-    }
-    pub fn insert(&self, uuid: Uuid, token: String, userinfo: Userinfo) -> Option<Userinfo> {
-        self.uuid.insert(uuid, token.clone());
-        self.user_data.insert(token, userinfo)
-    }
-    pub fn get(
-        &self,
-        token: &String,
-    ) -> Option<dashmap::mapref::one::Ref<'_, std::string::String, Userinfo>> {
-        self.user_data.get(token)
-    }
-    pub fn get_by_uuid(
-        &self,
-        uuid: &Uuid,
-    ) -> Option<dashmap::mapref::one::Ref<'_, std::string::String, Userinfo>> {
-        if let Some(token) = self.uuid.get(uuid) {
-            self.user_data.get(&token.clone())
-        } else {
-            None
-        }
-    }
-    pub fn contains_token(&self, token: &String) -> bool {
-        self.user_data.contains_key(token)
-    }
-    pub fn remove(&self, uuid: &Uuid) {
-        let token = self.uuid.remove(uuid).unwrap().1;
-        self.user_data.remove(&token);
-    }
-}
-
-#[derive(Debug, Clone)]
 pub struct AppState {
-    // Users with incomplete authentication
-    pending: Arc<DashMap<String, String>>, // <SHA1 serverId, USERNAME>
-    // Authenticated users
-    authenticated: Arc<Authenticated>, // <SHA1 serverId, Userinfo> NOTE: In the future, try it in a separate LockRw branch
-    // Ping broadcasts for WebSocket connections
+    /// Users with incomplete authentication
+    //pending: Arc<DashMap<String, String>>, // <SHA1 serverId, USERNAME>
+    /// Authenticated users
+    //authenticated: Arc<Authenticated>, // <SHA1 serverId, Userinfo> NOTE: In the future, try it in a separate LockRw branch
+    /// User manager
+    user_manager: Arc<UManager>,
+    /// Ping broadcasts for WebSocket connections
     broadcasts: Arc<DashMap<Uuid, broadcast::Sender<Vec<u8>>>>,
-    // Current configuration
+    /// Current configuration
     config: Arc<Mutex<config::Config>>,
 }
 
@@ -117,25 +71,32 @@ async fn main() -> Result<()> {
 
     // State
     let state = AppState {
-        pending: Arc::new(DashMap::new()),
-        authenticated: Arc::new(Authenticated::new()),
+        user_manager: Arc::new(UManager::new()),
         broadcasts: Arc::new(DashMap::new()),
         config: config,
     };
 
     // Automatic update of configuration while the server is running
     let config_update = state.config.clone();
+    let user_manager = Arc::clone(&state.user_manager);
     tokio::spawn(async move {
         loop {
-            tokio::time::sleep(std::time::Duration::from_secs(10)).await;
-
             let new_config = config::Config::parse(config_file.clone().into());
             let mut config = config_update.lock().await;
 
             if new_config != *config {
                 info!("Server configuration modification detected!");
                 *config = new_config;
+                // let collected = collect_advanced_users(&config.advanced_users);
+                // for (uuid, userinfo) in collected {
+                //     user_manager.insert_user(uuid, userinfo);
+                // }
             }
+            let collected = collect_advanced_users(&config.advanced_users);
+            for (uuid, userinfo) in collected {
+                user_manager.insert_user(uuid, userinfo);
+            }
+            tokio::time::sleep(std::time::Duration::from_secs(10)).await;
         }
     });
 

@@ -29,7 +29,7 @@ pub async fn user_info(
 
     let avatar_file = format!("avatars/{}.moon", formatted_uuid);
 
-    let auth_system = match state.authenticated.get_by_uuid(&uuid) {
+    let auth_system = match state.user_manager.get_by_uuid(&uuid) {
         Some(d) => d.auth_system.to_string(),
         None => return Json(json!("err")),
     };
@@ -113,7 +113,7 @@ pub async fn upload_avatar(
         None => http_error_ret!(UNAUTHORIZED, "Authentication error!"),
     };
 
-    if let Some(user_info) = state.authenticated.get(&token) {
+    if let Some(user_info) = state.user_manager.get(&token) {
         tracing::info!(
             "{} ({}) trying to upload an avatar",
             user_info.uuid,
@@ -128,7 +128,7 @@ pub async fn upload_avatar(
 
 pub async fn equip_avatar(Token(token): Token, State(state): State<AppState>) -> String {
     debug!("[API] S2C : Equip");
-    let uuid = state.authenticated.get(&token.unwrap()).unwrap().uuid;
+    let uuid = state.user_manager.get(&token.unwrap()).unwrap().uuid;
     if state
         .broadcasts
         .get(&uuid)
@@ -147,7 +147,7 @@ pub async fn delete_avatar(Token(token): Token, State(state): State<AppState>) -
         Some(t) => t,
         None => http_error_ret!(UNAUTHORIZED, "Authentication error!"),
     };
-    if let Some(user_info) = state.authenticated.get(&token) {
+    if let Some(user_info) = state.user_manager.get(&token) {
         tracing::info!(
             "{} ({}) is trying to delete the avatar",
             user_info.uuid,

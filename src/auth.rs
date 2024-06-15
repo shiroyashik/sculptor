@@ -1,3 +1,5 @@
+use std::{str::FromStr, sync::Arc};
+
 use crate::utils::*;
 use anyhow::anyhow;
 use axum::{
@@ -8,6 +10,7 @@ use axum::{
     routing::get,
     Router,
 };
+use dashmap::DashMap;
 use ring::digest::{self, digest};
 use serde::Deserialize;
 use tracing::{debug, error, info, trace};
@@ -35,8 +38,8 @@ async fn id(
 ) -> String {
     let server_id =
         hex::encode(&digest(&digest::SHA1_FOR_LEGACY_USE_ONLY, &rand()).as_ref()[0..20]);
-    let state = state.pending;
-    state.insert(server_id.clone(), query.username);
+    let state = state.user_manager;
+    state.pending_insert(server_id.clone(), query.username);
     server_id
 }
 
@@ -52,7 +55,7 @@ async fn verify(
     State(state): State<AppState>,
 ) -> Response {
     let server_id = query.id.clone();
-    let username = state.pending.remove(&server_id).unwrap().1; // TODO: Add error check
+    let username = state.user_manager.pending_remove(&server_id).unwrap().1; // TODO: Add error check
     let userinfo = match has_joined(&server_id, &username).await {
         Ok(d) => d,
         Err(e) => {
@@ -62,14 +65,15 @@ async fn verify(
     };
     if let Some((uuid, auth_system)) = userinfo {
         info!("[Authentication] {username} logged in using {auth_system:?}");
-        let authenticated = state.authenticated;
+        let authenticated = state.user_manager;
         authenticated.insert(
             uuid,
             server_id.clone(),
-            crate::Userinfo {
+            Userinfo {
                 username,
                 uuid,
                 auth_system,
+                token: Some(server_id.clone()),
             },
         );
         (StatusCode::OK, server_id.to_string()).into_response()
@@ -82,7 +86,7 @@ async fn verify(
 pub async fn status(Token(token): Token, State(state): State<AppState>) -> Response {
     match token {
         Some(token) => {
-            if state.authenticated.contains_token(&token) {
+            if state.user_manager.is_authenticated(&token) {
                 (StatusCode::OK, "ok".to_string()).into_response()
             } else {
 
@@ -121,9 +125,9 @@ where
 }
 // End Extractor
 
-// Work with external APIs
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Deserialize)]
 pub enum AuthSystem {
+    Internal,
     ElyBy,
     Mojang,
 }
@@ -131,8 +135,22 @@ pub enum AuthSystem {
 impl ToString for AuthSystem {
     fn to_string(&self) -> String {
         match self {
+            AuthSystem::Internal => String::from("internal"),
             AuthSystem::ElyBy => String::from("elyby"),
             AuthSystem::Mojang => String::from("mojang"),
+        }
+    }
+}
+
+impl FromStr for AuthSystem {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "internal" => Ok(Self::Internal),
+            "elyby" => Ok(Self::ElyBy),
+            "mojang" => Ok(Self::Mojang),
+            _ => Err(anyhow!("No auth system called: {s}"))
         }
     }
 }
@@ -140,12 +158,14 @@ impl ToString for AuthSystem {
 impl AuthSystem {
     fn get_url(&self) -> String {
         match self {
+            AuthSystem::Internal => panic!("Can't get internal URL!"),
             AuthSystem::ElyBy => String::from("http://minecraft.ely.by/session/hasJoined"),
             AuthSystem::Mojang => String::from("https://sessionserver.mojang.com/session/minecraft/hasJoined"),
         }
     }
 }
 
+// Work with external APIs
 /// Get UUID from JSON response
 #[inline]
 fn get_id_json(json: &serde_json::Value) -> anyhow::Result<Uuid> {
@@ -199,11 +219,71 @@ pub async fn has_joined(
     } else {
         panic!("Impossible error!")
     }
-    // FOR DELETE
-    // tokio::select! {
-    //     Ok(res) = tokio::spawn(fetch_json(AuthSystem::ElyBy, server_id, username)) => {Ok(res)},
-    //     Ok(res) = tokio::spawn(fetch_json(AuthSystem::Mojang, server_id, username)) => {Ok(res)},
-    //     else => {Err(anyhow!("Something went wrong in external apis request process"))}
-    // }
 }
 // End of work with external APIs
+
+// User manager
+#[derive(Debug, Clone)]
+pub struct UManager {
+    /// Users with incomplete authentication
+    pending: Arc<DashMap<String, String>>, // <SHA1 serverId, USERNAME> TODO: Add automatic purge
+    /// Authenticated users
+    authenticated: Arc<DashMap<String, Uuid>>, // <SHA1 serverId, Userinfo> NOTE: In the future, try it in a separate LockRw branch
+    /// Registered users
+    registered: Arc<DashMap<Uuid, Userinfo>>,
+}
+
+#[derive(Debug, Clone)]
+pub struct Userinfo {
+    pub username: String,
+    pub uuid: Uuid,
+    pub auth_system: AuthSystem,
+    pub token: Option<String>,
+}
+
+impl UManager {
+    pub fn new() -> Self {
+        Self {
+            pending: Arc::new(DashMap::new()),
+            registered: Arc::new(DashMap::new()),
+            authenticated: Arc::new(DashMap::new()),
+        }
+    }
+    pub fn pending_insert(&self, server_id: String, username: String) {
+        self.pending.insert(server_id, username);
+    }
+    pub fn pending_remove(&self, server_id: &str) -> std::option::Option<(std::string::String, std::string::String)> {
+        self.pending.remove(server_id)
+    }
+    pub fn insert(&self, uuid: Uuid, token: String, userinfo: Userinfo) -> Option<Userinfo> {
+        self.authenticated.insert(token, uuid);
+        self.registered.insert(uuid, userinfo)
+    }
+    pub fn insert_user(&self, uuid: Uuid, userinfo: Userinfo) -> Option<Userinfo> {
+        self.registered.insert(uuid, userinfo)
+    }
+    pub fn get(
+        &self,
+        token: &String,
+    ) -> Option<dashmap::mapref::one::Ref<'_, Uuid, Userinfo>> {
+        let uuid = self.authenticated.get(token)?;
+        self.registered.get(uuid.value())
+    }
+    pub fn get_by_uuid(
+        &self,
+        uuid: &Uuid,
+    ) -> Option<dashmap::mapref::one::Ref<'_, Uuid, Userinfo>> {
+        self.registered.get(uuid)
+    }
+    pub fn is_authenticated(&self, token: &String) -> bool {
+        self.authenticated.contains_key(token)
+    }
+    pub fn is_registered(&self, uuid: &Uuid) -> bool {
+        self.registered.contains_key(uuid)
+    }
+    pub fn remove(&self, uuid: &Uuid) {
+        let token = self.registered.remove(uuid).unwrap().1.token.unwrap();
+        self.authenticated.remove(&token);
+    }
+}
+// End of User manager
