@@ -137,6 +137,15 @@ impl ToString for AuthSystem {
     }
 }
 
+impl AuthSystem {
+    fn get_url(&self) -> String {
+        match self {
+            AuthSystem::ElyBy => String::from("http://minecraft.ely.by/session/hasJoined"),
+            AuthSystem::Mojang => String::from("https://sessionserver.mojang.com/session/minecraft/hasJoined"),
+        }
+    }
+}
+
 /// Get UUID from JSON response
 #[inline]
 fn get_id_json(json: &serde_json::Value) -> anyhow::Result<Uuid> {
@@ -147,18 +156,12 @@ fn get_id_json(json: &serde_json::Value) -> anyhow::Result<Uuid> {
 
 #[inline]
 async fn fetch_json(
-    url: &str,
+    auth_system: AuthSystem,
     server_id: &str,
     username: &str,
 ) -> anyhow::Result<Option<(Uuid, AuthSystem)>> {
     let client = reqwest::Client::new();
-    let auth_system = if url.contains("https://sessionserver.mojang.com") {
-        AuthSystem::Mojang
-    } else if url.contains("http://minecraft.ely.by") {
-        AuthSystem::ElyBy
-    } else {
-        return Err(anyhow!("Unknown auth system"));
-    };
+    let url = auth_system.get_url();
 
     let res = client
         .get(url)
@@ -172,7 +175,8 @@ async fn fetch_json(
             let uuid = get_id_json(&json)?;
             Ok(Some((uuid, auth_system)))
         }
-        401 => Ok(None),
+        401 => Ok(None), // Ely.By None
+        204 => Ok(None), // Mojang None
         _ => Err(anyhow!("Unknown code: {}", res.status().as_u16())),
     }
 }
@@ -181,10 +185,25 @@ pub async fn has_joined(
     server_id: &str,
     username: &str,
 ) -> anyhow::Result<Option<(Uuid, AuthSystem)>> {
-    tokio::select! {
-        Ok(res) = fetch_json("http://minecraft.ely.by/session/hasJoined", server_id, username) => {Ok(res)},
-        Ok(res) = fetch_json("https://sessionserver.mojang.com/session/minecraft/hasJoined", server_id, username) => {Ok(res)},
-        else => {Err(anyhow!("Something went wrong in external apis request process"))}
+    let (elyby, mojang) = (
+        fetch_json(AuthSystem::ElyBy,server_id, username).await?,
+        fetch_json(AuthSystem::Mojang, server_id, username).await?
+    );
+
+    if elyby.is_none() && mojang.is_none() {
+        Ok(None)
+    } else if mojang.is_some() {
+        Ok(mojang)
+    } else if elyby.is_some() {
+        Ok(elyby)
+    } else {
+        panic!("Impossible error!")
     }
+    // FOR DELETE
+    // tokio::select! {
+    //     Ok(res) = tokio::spawn(fetch_json(AuthSystem::ElyBy, server_id, username)) => {Ok(res)},
+    //     Ok(res) = tokio::spawn(fetch_json(AuthSystem::Mojang, server_id, username)) => {Ok(res)},
+    //     else => {Err(anyhow!("Something went wrong in external apis request process"))}
+    // }
 }
 // End of work with external APIs
