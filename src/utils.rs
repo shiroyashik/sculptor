@@ -5,7 +5,7 @@ use rand::{distributions::Alphanumeric, thread_rng, Rng};
 use ring::digest::{self, digest};
 use uuid::Uuid;
 
-use crate::auth::{AuthSystem, Userinfo};
+use crate::auth::{AuthSystem, UManager, Userinfo};
 
 // Core functions
 pub fn rand() -> [u8; 50] {
@@ -36,8 +36,25 @@ pub fn get_correct_array(value: &toml::Value) -> Vec<u8> {
         .map(move |x| x.as_integer().unwrap() as u8)
         .collect()
 }
-pub fn collect_advanced_users(value: &toml::Table) -> Vec<(Uuid, Userinfo)> {
-    value
+// pub fn collect_advanced_users(value: &toml::Table) -> Vec<(Uuid, Userinfo)> {
+//     value
+//         .iter()
+//         .map( |(uuid, userdata)| {
+//             let auth_system = AuthSystem::from_str(userdata.as_table().unwrap().get("authSystem").expect("Can't find authSystem in advancedUser!").as_str().unwrap()).unwrap();
+//             let username = userdata.as_table().unwrap().get("username").expect("Can't find username in advancedUser!").as_str().unwrap().to_string();
+//             (
+//             Uuid::parse_str(uuid).unwrap(),
+//             Userinfo { username,
+//                 uuid: Uuid::parse_str(uuid).unwrap(),
+//                 auth_system,
+//                 token: None
+//             }
+//         )})
+//         .collect()
+// }
+
+pub fn update_advanced_users(value: &toml::Table, umanager: &UManager) {
+    let users: Vec<(Uuid, Userinfo)> = value
         .iter()
         .map( |(uuid, userdata)| {
             let auth_system = AuthSystem::from_str(userdata.as_table().unwrap().get("authSystem").expect("Can't find authSystem in advancedUser!").as_str().unwrap()).unwrap();
@@ -50,8 +67,13 @@ pub fn collect_advanced_users(value: &toml::Table) -> Vec<(Uuid, Userinfo)> {
                 token: None
             }
         )})
-        .collect()
+        .collect();
+
+    for (uuid, userinfo) in users {
+        umanager.insert_user(uuid, userinfo);
+    }
 }
+
 
 pub fn format_uuid(uuid: &Uuid) -> String {
     // let uuid = Uuid::parse_str(&uuid)?; TODO: Вероятно format_uuid стоит убрать

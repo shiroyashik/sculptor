@@ -3,7 +3,6 @@ use axum::{
     extract::DefaultBodyLimit, middleware::from_extractor, routing::{delete, get, post, put}, Router
 };
 use dashmap::DashMap;
-use utils::collect_advanced_users;
 use std::sync::Arc;
 use tokio::sync::{broadcast, Mutex};
 use tower_http::trace::TraceLayer;
@@ -28,9 +27,11 @@ use profile as api_profile;
 
 // Utils
 mod utils;
+use utils::update_advanced_users;
 
 // Config
 mod config;
+use config::Config;
 
 #[derive(Debug, Clone)]
 pub struct AppState {
@@ -66,7 +67,7 @@ async fn main() -> Result<()> {
 
     info!("The Sculptor v{}", SCULPTOR_VERSION);
     // Config
-    let config = Arc::new(Mutex::new(config::Config::parse(config_file.clone().into())));
+    let config = Arc::new(Mutex::new(Config::parse(config_file.clone().into())));
     let listen = config.lock().await.listen.clone();
 
     // State
@@ -77,26 +78,20 @@ async fn main() -> Result<()> {
     };
 
     // Automatic update of configuration while the server is running
-    let config_update = state.config.clone();
+    let config_update = Arc::clone(&state.config);
     let user_manager = Arc::clone(&state.user_manager);
+    update_advanced_users(&config_update.lock().await.advanced_users, &user_manager);
     tokio::spawn(async move {
         loop {
-            let new_config = config::Config::parse(config_file.clone().into());
+            tokio::time::sleep(std::time::Duration::from_secs(10)).await;
+            let new_config = Config::parse(config_file.clone().into());
             let mut config = config_update.lock().await;
 
             if new_config != *config {
                 info!("Server configuration modification detected!");
                 *config = new_config;
-                // let collected = collect_advanced_users(&config.advanced_users);
-                // for (uuid, userinfo) in collected {
-                //     user_manager.insert_user(uuid, userinfo);
-                // }
+                update_advanced_users(&config.advanced_users, &user_manager);
             }
-            let collected = collect_advanced_users(&config.advanced_users);
-            for (uuid, userinfo) in collected {
-                user_manager.insert_user(uuid, userinfo);
-            }
-            tokio::time::sleep(std::time::Duration::from_secs(10)).await;
         }
     });
 

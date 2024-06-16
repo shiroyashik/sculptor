@@ -50,9 +50,9 @@ authSystem = "elyby"
 special = [0,0,0,1,0,0] # 6
 pride = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0] # 25
 
-# Your nickname here
+# With advancedUsers you can set additional parameters
 # [advancedUsers.your uuid here]
-# username = "Bot"
+# username = "Your_username_here"
 # authSystem = "mojang" # can be: mojang, elyby, internal (cant be authenticated)
 # special = [0,1,0,0,0,0] # and set badges what you want! :D
 # pride = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
