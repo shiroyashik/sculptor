@@ -25,18 +25,19 @@ pub async fn handler(ws: WebSocketUpgrade, State(state): State<AppState>) -> Res
 }
 
 #[derive(Debug, Clone)]
-struct WSOwner(Option<WSUser>);
-
-#[derive(Debug, Clone)]
 struct WSUser {
     username: String,
     token: String,
     uuid: Uuid,
 }
 
-impl WSOwner {
+trait ExtWSUser {
+    fn name(&self) -> String;
+}
+
+impl ExtWSUser for Option<WSUser> {
     fn name(&self) -> String {
-        if let Some(user) = &self.0 {
+        if let Some(user) = self {
             format!(" ({})", user.username)
         } else {
             String::new()
@@ -46,31 +47,24 @@ impl WSOwner {
 
 async fn handle_socket(mut socket: WebSocket, state: AppState) {
     debug!("[WebSocket] New unknown connection!");
-    let mut owner = WSOwner(None);
-    let cutoff: DashMap<Uuid, Arc<Notify>> = DashMap::new();
-    let (mtx, mut mrx) = mpsc::channel(64);
-    let mut bctx: Option<broadcast::Sender<Vec<u8>>> = None;
+    let mut owner: Option<WSUser> = None; // Information about user
+    let cutoff: DashMap<Uuid, Arc<Notify>> = DashMap::new(); // Отключение подписки
+    let (mtx, mut mrx) = mpsc::channel(64); // multiple tx and single receive
+    let mut bctx: Option<broadcast::Sender<Vec<u8>>> = None; // broadcast tx send
     loop {
         tokio::select! {
+            // Main loop what receving messages from WebSocket
             Some(msg) = socket.recv() => {
                 trace!("[WebSocket{}] Raw: {msg:?}", owner.name());
                 let mut msg = if let Ok(msg) = msg {
                     if let Message::Close(_) = msg {
                         info!("[WebSocket{}] Connection successfully closed!", owner.name());
-                        if let Some(u) = owner.0 {
-                            state.broadcasts.remove(&u.uuid);
-                            state.user_manager.remove(&u.uuid);
-                        }
-                        return;
+                        break;
                     }
                     msg
                 } else {
                     debug!("[WebSocket{}] Receive error! Connection terminated!", owner.name());
-                    if let Some(u) = owner.0 {
-                        state.broadcasts.remove(&u.uuid);
-                        state.user_manager.remove(&u.uuid);
-                    }
-                    return;
+                    break;
                 };
                 // Next is the code for processing msg
                 let msg_vec = msg.clone().into_data();
@@ -80,11 +74,7 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
                     Ok(data) => data,
                     Err(e) => {
                         error!("[WebSocket{}] This message is not from Figura! {e:?}", owner.name());
-                        if let Some(u) = owner.0 {
-                            state.broadcasts.remove(&u.uuid);
-                            state.user_manager.remove(&u.uuid);
-                        }
-                        return;
+                        break;
                     },
                 };
 
@@ -97,7 +87,8 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
                         match state.user_manager.get(&token) { // The principle is simple: if there is no token in authenticated, then it's "dirty hacker" :D
                             Some(t) => {
                                 //username = t.username.clone();
-                                owner.0 = Some(WSUser { username: t.username.clone(), token, uuid: t.uuid });
+                                owner = Some(WSUser { username: t.username.clone(), token, uuid: t.uuid });
+                                state.session.insert(t.uuid, mtx.clone());
                                 msg = Message::Binary(S2CMessage::Auth.to_vec());
                                 match state.broadcasts.get(&t.uuid) {
                                     Some(tx) => {
@@ -113,53 +104,52 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
                             None => {
                                 warn!("[WebSocket] Authenticaton error! Connection terminated!");
                                 debug!("[WebSocket] Tried to log in with {token}"); // Tried to log in with token: {token}
-                                if let Some(u) = owner.0 {
-                                    state.broadcasts.remove(&u.uuid);
-                                    state.user_manager.remove(&u.uuid);
-                                }
-                                return; // TODO: Define the trip code
+                                break;
                             },
                         };
                     },
                     C2SMessage::Ping(_, _, _) => {
                         debug!("[WebSocket{}] C2S : Ping", owner.name());
-                        let data = into_s2c_ping(msg_vec, owner.0.clone().unwrap().uuid);
+                        let data = into_s2c_ping(msg_vec, owner.clone().unwrap().uuid);
                         match bctx.clone().unwrap().send(data) {
                             Ok(_) => (),
                             Err(_) => debug!("[WebSocket{}] Failed to send Ping! Maybe there's no one to send", owner.name()),
                         };
                         continue;
                     },
+                    // Subscribing
                     C2SMessage::Sub(uuid) => { // TODO: Eliminate the possibility of using SUB without authentication
                         debug!("[WebSocket{}] C2S : Sub", owner.name());
-                        // Rejecting Sub to itself
-                        if uuid == owner.0.clone().unwrap().uuid {
+                        // Ignoring self Sub
+                        if uuid == owner.clone().unwrap().uuid {
                             continue;
                         };
 
-                        let rx =  match state.broadcasts.get(&uuid) {
-                            Some(rx) => rx.to_owned().subscribe(),
+                        let rx = match state.broadcasts.get(&uuid) { // Get sender
+                            Some(rx) => rx.to_owned().subscribe(), // Subscribe on sender to get receiver
                             None => {
                                 warn!("[WebSocket{}] Attention! The required UUID for subscription was not found!", owner.name());
-                                let (tx, rx) = broadcast::channel(64);
-                                state.broadcasts.insert(uuid, tx);
+                                let (tx, rx) = broadcast::channel(64); // Pre creating broadcast for future
+                                state.broadcasts.insert(uuid, tx); // Inserting into dashmap
                                 rx
                             },
                         };
 
-                        let shutdown = Arc::new(Notify::new());
-                        tokio::spawn(subscribe(mtx.clone(), rx, shutdown.clone()));
-                        cutoff.insert(uuid, shutdown);
+                        let shutdown = Arc::new(Notify::new()); // Creating new shutdown <Notify>
+                        tokio::spawn(subscribe(mtx.clone(), rx, shutdown.clone())); // <For send pings to >
+                        cutoff.insert(uuid, shutdown); 
                         continue;
                     },
+                    // Unsubscribing
                     C2SMessage::Unsub(uuid) => {
                         debug!("[WebSocket{}] C2S : Unsub", owner.name());
-                        // Rejecting UnSub to itself
-                        if uuid == owner.0.clone().unwrap().uuid {
+                        // Ignoring self Unsub
+                        if uuid == owner.clone().unwrap().uuid {
                             continue;
                         };
-                        let shutdown = cutoff.remove(&uuid).unwrap().1;
-                        shutdown.notify_one();
+
+                        let shutdown = cutoff.remove(&uuid).unwrap().1; // Getting <Notify> from list // FIXME: UNWRAP PANIC! NONE VALUE
+                        shutdown.notify_one(); // Shutdown <subscribe> function
                         continue;
                     },
                 }
@@ -168,11 +158,7 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
                 debug!("[WebSocket{}] Answering: {msg:?}", owner.name());
                 if socket.send(msg).await.is_err() {
                     warn!("[WebSocket{}] Send error! Connection terminated!", owner.name());
-                    if let Some(u) = owner.0 {
-                        state.broadcasts.remove(&u.uuid);
-                        state.user_manager.remove(&u.uuid);
-                    }
-                    return;
+                    break;
                 }
             }
             msg = mrx.recv() => {
@@ -182,16 +168,19 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
                     }
                     Err(_) => {
                         warn!("[WebSocketSubscriber{}] Send error! Connection terminated!", owner.name());
-                        if let Some(u) = owner.0 {
-                            state.broadcasts.remove(&u.uuid);
-                            state.user_manager.remove(&u.uuid);
-                        }
-                        return;
+                        break;
                     }
                 }
             }
         }
     }
+    // Closing connection
+    if let Some(u) = owner {
+        state.session.remove(&u.uuid);
+        // state.broadcasts.remove(&u.uuid); // NOTE: Create broadcasts manager ??
+        state.user_manager.remove(&u.uuid);
+    }
+
 }
 
 async fn subscribe(

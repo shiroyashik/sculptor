@@ -4,7 +4,7 @@ use axum::{
 };
 use dashmap::DashMap;
 use std::sync::Arc;
-use tokio::sync::{broadcast, Mutex};
+use tokio::sync::{broadcast, mpsc, Mutex};
 use tower_http::trace::TraceLayer;
 use tracing::info;
 use uuid::Uuid;
@@ -35,12 +35,10 @@ use config::Config;
 
 #[derive(Debug, Clone)]
 pub struct AppState {
-    /// Users with incomplete authentication
-    //pending: Arc<DashMap<String, String>>, // <SHA1 serverId, USERNAME>
-    /// Authenticated users
-    //authenticated: Arc<Authenticated>, // <SHA1 serverId, Userinfo> NOTE: In the future, try it in a separate LockRw branch
     /// User manager
     user_manager: Arc<UManager>,
+    /// Send into WebSocket
+    session: Arc<DashMap<Uuid, mpsc::Sender<Vec<u8>>>>,
     /// Ping broadcasts for WebSocket connections
     broadcasts: Arc<DashMap<Uuid, broadcast::Sender<Vec<u8>>>>,
     /// Current configuration
@@ -73,6 +71,7 @@ async fn main() -> Result<()> {
     // State
     let state = AppState {
         user_manager: Arc::new(UManager::new()),
+        session: Arc::new(DashMap::new()),
         broadcasts: Arc::new(DashMap::new()),
         config: config,
     };
@@ -97,6 +96,7 @@ async fn main() -> Result<()> {
 
     let api = Router::new()
         .nest("//auth", api_auth::router())
+        .nest("/v1", ws::http_router())
         .route("/limits", get(api_info::limits))
         .route("/version", get(api_info::version))
         .route("/motd", get(api_info::motd))

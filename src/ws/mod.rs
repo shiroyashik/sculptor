@@ -1,9 +1,8 @@
-mod c2s;
-mod errors;
-mod handler;
-mod s2c;
+mod types;
+mod websocket;
+mod http;
 
-pub use c2s::C2SMessage;
-pub use errors::MessageLoadError;
-pub use handler::handler;
-pub use s2c::S2CMessage;
+pub use types::C2SMessage;
+pub use types::S2CMessage;
+pub use websocket::handler;
+pub use http::router as http_router;

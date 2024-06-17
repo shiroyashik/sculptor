@@ -7,9 +7,25 @@ use toml::Table;
 #[serde(rename_all = "camelCase")]
 pub struct Config {
     pub listen: String,
+    pub token: Option<String>,
     pub motd: String,
     pub limitations: Limitations,
     pub advanced_users: Table,
+}
+
+impl Config {
+    pub fn verify_token(&self, suspicious: &str) -> bool {
+        match &self.token {
+            Some(t) => {
+                if t == suspicious {
+                    true
+                } else {
+                    false
+                }
+            },
+            None => false
+        } 
+    }
 }
 
 #[derive(Deserialize, Clone, Debug, PartialEq)]

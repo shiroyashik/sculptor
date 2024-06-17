@@ -1,7 +1,11 @@
-listen = "0.0.0.0:6665" # Don't touch this if you running under Docker container
+## Don't touch this if you running under Docker container
+listen = "0.0.0.0:6665"
 
-# Message of The Day
-# It will be displayed to every player in the Figura menu who is connected to your server
+## Don't touch if you don't know what you're doing
+# token = "<random symbols>"
+
+## Message of The Day
+## It will be displayed to every player in the Figura menu who is connected to your server
 motd = """
 [
     {
@@ -41,7 +45,7 @@ motd = """
 """
 
 [limitations]
-maxAvatarSize = 100000
+maxAvatarSize = 100000 # 100 KB
 maxAvatars = 10
 
 [advancedUsers.66004548-4de5-49de-bade-9c3933d8eb97]
@@ -50,11 +54,11 @@ authSystem = "elyby"
 special = [0,0,0,1,0,0] # 6
 pride = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0] # 25
 
-# With advancedUsers you can set additional parameters
+## With advancedUsers you can set additional parameters
 # [advancedUsers.your uuid here]
 # username = "Your_username_here"
 # authSystem = "mojang" # can be: mojang, elyby, internal (cant be authenticated)
 # special = [0,1,0,0,0,0] # and set badges what you want! :D
 # pride = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
 
-# you can create an unlimited number of "advancedUsers" for any users.
+## you can create an unlimited number of "advancedUsers" for any users.

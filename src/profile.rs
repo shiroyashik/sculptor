@@ -136,7 +136,7 @@ pub async fn equip_avatar(Token(token): Token, State(state): State<AppState>) ->
         .send(S2CMessage::Event(uuid).to_vec())
         .is_err()
     {
-        warn!("[WebSocket] Failed to send Event! Maybe there is no one to send")
+        debug!("[WebSocket] Failed to send Event! Maybe there is no one to send")
         // TODO: Put into Handler
     };
     "ok".to_string()
