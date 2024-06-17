@@ -78,7 +78,7 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
                     },
                 };
 
-                debug!("[WebSocket{}] Raw: {newmsg:?}", owner.name());
+                debug!("[WebSocket{}] MSG: {:?}, HEX: {}", owner.name(), newmsg, hex::encode(newmsg.to_vec()));
 
                 match newmsg {
                     C2SMessage::Token(token) => {

@@ -89,3 +89,12 @@ impl<'a> From<C2SMessage<'a>> for Box<[u8]> {
         a
     }
 }
+
+impl<'a> C2SMessage<'a> {
+    pub fn to_array(&self) -> Box<[u8]> {
+        <C2SMessage as Into<Box<[u8]>>>::into(self.clone())
+    }
+    pub fn to_vec(&self) -> Vec<u8> {
+        self.to_array().to_vec()
+    }
+}

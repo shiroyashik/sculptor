@@ -84,10 +84,10 @@ impl<'a> From<S2CMessage<'a>> for Box<[u8]> {
 }
 
 impl<'a> S2CMessage<'a> {
-    pub fn to_array(self) -> Box<[u8]> {
-        <S2CMessage as Into<Box<[u8]>>>::into(self)
+    pub fn to_array(&self) -> Box<[u8]> {
+        <S2CMessage as Into<Box<[u8]>>>::into(self.clone())
     }
-    pub fn to_vec(self) -> Vec<u8> {
+    pub fn to_vec(&self) -> Vec<u8> {
         self.to_array().to_vec()
     }
 }
