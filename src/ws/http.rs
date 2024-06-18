@@ -27,15 +27,9 @@ async fn verify(
     Token(token): Token,
     State(state): State<AppState>,
 ) -> Response {
-    match token {
-        Some(t) => {
-            if !state.config.lock().await.verify_token(&t) {
-                return (StatusCode::UNAUTHORIZED, "wrong token".to_string()).into_response()
-            }
-        },
-        None => return (StatusCode::UNAUTHORIZED, "unauthorized".to_string()).into_response(),
-    }
-    (StatusCode::OK, "ok".to_string()).into_response()
+    state.config.lock().await.clone()
+        .verify_token(&token)
+        .unwrap_or_else(|x| x)
 }
 
 async fn raw(
@@ -45,13 +39,9 @@ async fn raw(
     body: String,
 ) -> Response {
     debug!(body = body);
-    match token {
-        Some(t) => {
-            if !state.config.lock().await.verify_token(&t) {
-                return (StatusCode::UNAUTHORIZED, "wrong token".to_string()).into_response()
-            }
-        },
-        None => return (StatusCode::UNAUTHORIZED, "unauthorized".to_string()).into_response(),
+    match state.config.lock().await.clone().verify_token(&token) {
+        Ok(_) => {},
+        Err(e) => return e,
     }
     let payload = match hex::decode(body) {
         Ok(v) => v,
@@ -85,13 +75,9 @@ async fn sub_raw(
     body: String,
 ) -> Response {
     debug!(body = body);
-    match token {
-        Some(t) => {
-            if !state.config.lock().await.verify_token(&t) {
-                return (StatusCode::UNAUTHORIZED, "wrong token".to_string()).into_response()
-            }
-        },
-        None => return (StatusCode::UNAUTHORIZED, "unauthorized".to_string()).into_response(),
+    match state.config.lock().await.clone().verify_token(&token) {
+        Ok(_) => {},
+        Err(e) => return e,
     }
     let payload = match hex::decode(body) {
         Ok(v) => v,

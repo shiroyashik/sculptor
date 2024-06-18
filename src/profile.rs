@@ -4,7 +4,7 @@ use axum::{
     extract::{Path, State},
     Json,
 };
-use tracing::{debug, warn};
+use tracing::debug;
 use serde_json::{json, Value};
 use tokio::{
     fs,

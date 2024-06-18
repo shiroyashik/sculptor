@@ -3,12 +3,7 @@ use std::{str::FromStr, sync::Arc};
 use crate::utils::*;
 use anyhow::anyhow;
 use axum::{
-    async_trait, debug_handler,
-    extract::{FromRequestParts, Query, State},
-    http::{request::Parts, StatusCode},
-    response::{IntoResponse, Response},
-    routing::get,
-    Router,
+    async_trait, debug_handler, extract::{FromRequestParts, Query, State}, http::{request::Parts, StatusCode}, response::{IntoResponse, Response}, routing::{get, post}, Json, Router
 };
 use dashmap::DashMap;
 use ring::digest::{self, digest};
@@ -22,6 +17,11 @@ pub fn router() -> Router<AppState> {
     Router::new()
         .route("/id", get(id))
         .route("/verify", get(verify))
+}
+
+pub fn router_v1() -> Router<AppState> {
+    Router::new()
+        .route("/create", post(create_user))
 }
 
 // Web
@@ -83,7 +83,10 @@ async fn verify(
     }
 }
 
-pub async fn status(Token(token): Token, State(state): State<AppState>) -> Response {
+pub async fn status(
+    Token(token): Token,
+    State(state): State<AppState>
+) -> Response {
     match token {
         Some(token) => {
             if state.user_manager.is_authenticated(&token) {
@@ -97,6 +100,21 @@ pub async fn status(Token(token): Token, State(state): State<AppState>) -> Respo
             (StatusCode::BAD_REQUEST, "bad request".to_string()).into_response()
         }
     }
+}
+
+pub async fn create_user(
+    Token(token): Token,
+    State(state): State<AppState>,
+    Json(json): Json<Userinfo>
+) -> Response {
+    debug!("Json: {json:?}");
+    match state.config.lock().await.clone().verify_token(&token) {
+        Ok(_) => {},
+        Err(e) => return e,
+    }
+    
+    state.user_manager.insert_user(json.uuid, json);
+    (StatusCode::OK, "ok".to_string()).into_response()
 }
 // Web End
 
@@ -126,6 +144,7 @@ where
 // End Extractor
 
 #[derive(Debug, Clone, PartialEq, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum AuthSystem {
     Internal,
     ElyBy,
@@ -233,7 +252,8 @@ pub struct UManager {
     registered: Arc<DashMap<Uuid, Userinfo>>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Userinfo {
     pub username: String,
     pub uuid: Uuid,
@@ -278,7 +298,7 @@ impl UManager {
     pub fn is_authenticated(&self, token: &String) -> bool {
         self.authenticated.contains_key(token)
     }
-    pub fn is_registered(&self, uuid: &Uuid) -> bool {
+    pub fn _is_registered(&self, uuid: &Uuid) -> bool {
         self.registered.contains_key(uuid)
     }
     pub fn remove(&self, uuid: &Uuid) {

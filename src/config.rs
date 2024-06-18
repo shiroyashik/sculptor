@@ -14,17 +14,23 @@ pub struct Config {
 }
 
 impl Config {
-    pub fn verify_token(&self, suspicious: &str) -> bool {
+    pub fn verify_token(&self, suspicious: &Option<String>) -> Result<axum::response::Response, axum::response::Response> {
+        use axum::{http::StatusCode, response::IntoResponse};
         match &self.token {
-            Some(t) => {
-                if t == suspicious {
-                    true
-                } else {
-                    false
+            Some(token) => {
+                match suspicious {
+                    Some(suspicious) => {
+                        if token == suspicious {
+                            return Ok((StatusCode::OK, "ok".to_string()).into_response())
+                        } else {
+                            return Err((StatusCode::UNAUTHORIZED, "wrong token".to_string()).into_response())
+                        }
+                    },
+                    None => return Err((StatusCode::UNAUTHORIZED, "unauthorized".to_string()).into_response())
                 }
             },
-            None => false
-        } 
+            None => return Err((StatusCode::LOCKED, "token doesnt defined".to_string()).into_response()),
+        }
     }
 }
 

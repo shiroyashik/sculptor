@@ -27,7 +27,6 @@ pub async fn handler(ws: WebSocketUpgrade, State(state): State<AppState>) -> Res
 #[derive(Debug, Clone)]
 struct WSUser {
     username: String,
-    token: String,
     uuid: Uuid,
 }
 
@@ -87,7 +86,7 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
                         match state.user_manager.get(&token) { // The principle is simple: if there is no token in authenticated, then it's "dirty hacker" :D
                             Some(t) => {
                                 //username = t.username.clone();
-                                owner = Some(WSUser { username: t.username.clone(), token, uuid: t.uuid });
+                                owner = Some(WSUser { username: t.username.clone(), uuid: t.uuid });
                                 state.session.insert(t.uuid, mtx.clone());
                                 msg = Message::Binary(S2CMessage::Auth.to_vec());
                                 match state.broadcasts.get(&t.uuid) {

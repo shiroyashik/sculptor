@@ -94,9 +94,13 @@ async fn main() -> Result<()> {
         }
     });
 
+    let v1 = Router::new()
+        .nest("/", ws::http2ws_router())
+        .nest("/user", api_auth::router_v1());
+
     let api = Router::new()
         .nest("//auth", api_auth::router())
-        .nest("/v1", ws::http_router())
+        .nest("/v1", v1)
         .route("/limits", get(api_info::limits))
         .route("/version", get(api_info::version))
         .route("/motd", get(api_info::motd))
