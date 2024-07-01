@@ -15,10 +15,8 @@ use tokio::sync::{
 };
 use uuid::Uuid;
 
-use crate::{
-    ws::{C2SMessage, S2CMessage},
-    AppState,
-};
+use crate::AppState;
+use super::types::{C2SMessage, S2CMessage};
 
 pub async fn handler(ws: WebSocketUpgrade, State(state): State<AppState>) -> Response {
     ws.on_upgrade(|socket| handle_socket(socket, state))

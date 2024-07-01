@@ -9,29 +9,44 @@ use tower_http::trace::TraceLayer;
 use tracing::info;
 use uuid::Uuid;
 
-// WebSocket worker
-mod ws;
-use ws::handler;
+// // WebSocket worker
+// mod ws;
+// use ws::handler;
 
-// API: Auth
+// // API: Auth
+// mod auth;
+// use auth::{self as api_auth, UManager};
+
+// // API: Server info
+// mod info;
+// use info as api_info;
+
+// // API: Profile
+// mod profile;
+// use profile as api_profile;
+
+// API
+mod api;
+use api::{
+    figura::{ws, info as api_info, profile as api_profile, auth as api_auth},
+    // v1::{},
+};
+
+// Auth
 mod auth;
-use auth::{self as api_auth, UManager};
+use auth::UManager;
 
-// API: Server info
-mod info;
-use info as api_info;
-
-// API: Profile
-mod profile;
-use profile as api_profile;
+// Config
+mod state;
+use state::Config;
 
 // Utils
 mod utils;
 use utils::update_advanced_users;
 
-// Config
-mod config;
-use config::Config;
+// // Config
+// mod config;
+// use config::Config;
 
 #[derive(Debug, Clone)]
 pub struct AppState {
@@ -42,7 +57,7 @@ pub struct AppState {
     /// Ping broadcasts for WebSocket connections
     broadcasts: Arc<DashMap<Uuid, broadcast::Sender<Vec<u8>>>>,
     /// Current configuration
-    config: Arc<Mutex<config::Config>>,
+    config: Arc<Mutex<state::Config>>,
 }
 
 const LOGGER_ENV: &'static str = "RUST_LOG";
@@ -94,13 +109,9 @@ async fn main() -> Result<()> {
         }
     });
 
-    let v1 = Router::new()
-        .nest("/", ws::http2ws_router())
-        .nest("/user", api_auth::router_v1());
-
     let api = Router::new()
         .nest("//auth", api_auth::router())
-        .nest("/v1", v1)
+        .nest("/v1", api::v1::router())
         .route("/limits", get(api_info::limits))
         .route("/version", get(api_info::version))
         .route("/motd", get(api_info::motd))
@@ -112,10 +123,9 @@ async fn main() -> Result<()> {
 
     let app = Router::new()
         .nest("/api", api)
-        .route("/api/", get(api_auth::status))
-        .route("/ws", get(handler))
+        .route("/ws", get(ws))
         .route("/health", get(|| async { "ok" }))
-        .route_layer(from_extractor::<api_auth::Token>())
+        .route_layer(from_extractor::<auth::Token>())
         .with_state(state)
         .layer(TraceLayer::new_for_http().on_request(()));
 

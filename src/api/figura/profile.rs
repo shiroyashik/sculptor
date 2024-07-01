@@ -15,9 +15,9 @@ use uuid::Uuid;
 use crate::{
     auth::Token,
     utils::{calculate_file_sha256, format_uuid, get_correct_array},
-    ws::S2CMessage,
     AppState,
 };
+use super::types::S2CMessage;
 
 pub async fn user_info(
     Path(uuid): Path<Uuid>,

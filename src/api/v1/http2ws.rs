@@ -1,29 +1,14 @@
 use axum::{
     extract::{Query, State},
     http::StatusCode,
-    response::{IntoResponse, Response},
-    routing::{get, post},
-    Router
+    response::{IntoResponse, Response}
 };
-use serde::Deserialize;
 use tracing::debug;
-use uuid::Uuid;
 
 use crate::{auth::Token, AppState};
+use super::types::UserUuid;
 
-pub fn router() -> Router<AppState> {
-    Router::new()
-        .route("/verify", get(verify))
-        .route("/raw", post(raw))
-        .route("/sub/raw", post(sub_raw))
-}
-
-#[derive(Deserialize)]
-struct UserUuid {
-    uuid: Option<Uuid>,
-}
-
-async fn verify(
+pub(super) async fn verify(
     Token(token): Token,
     State(state): State<AppState>,
 ) -> Response {
@@ -32,7 +17,7 @@ async fn verify(
         .unwrap_or_else(|x| x)
 }
 
-async fn raw(
+pub(super) async fn raw(
     Token(token): Token,
     Query(query): Query<UserUuid>,
     State(state): State<AppState>,
@@ -68,7 +53,7 @@ async fn raw(
     }
 }
 
-async fn sub_raw(
+pub(super) async fn sub_raw(
     Token(token): Token,
     Query(query): Query<UserUuid>,
     State(state): State<AppState>,
