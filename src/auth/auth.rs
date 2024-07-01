@@ -137,7 +137,7 @@ impl UManager {
     ) -> Option<dashmap::mapref::one::Ref<'_, Uuid, Userinfo>> {
         self.registered.get(uuid)
     }
-    pub fn is_authenticated(&self, token: &String) -> bool {
+    pub fn _is_authenticated(&self, token: &String) -> bool {
         self.authenticated.contains_key(token)
     }
     pub fn _is_registered(&self, uuid: &Uuid) -> bool {

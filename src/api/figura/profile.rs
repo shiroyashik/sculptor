@@ -155,7 +155,7 @@ pub async fn delete_avatar(Token(token): Token, State(state): State<AppState>) -
     Ok("ok".to_string())
 }
 
-fn send_event(broadcasts: &Arc<DashMap<Uuid, Sender<Vec<u8>>>>, uuid: &Uuid) {
+pub fn send_event(broadcasts: &Arc<DashMap<Uuid, Sender<Vec<u8>>>>, uuid: &Uuid) {
     if let Some(broadcast) = broadcasts.get(&uuid) {
         if broadcast.send(S2CMessage::Event(*uuid).to_vec()).is_err() {
             debug!("[WebSocket] Failed to send Event! There is no one to send. UUID: {uuid}")
