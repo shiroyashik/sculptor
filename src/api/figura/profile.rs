@@ -1,14 +1,17 @@
+use std::sync::Arc;
+
 use anyhow_http::{http_error_ret, response::Result};
 use axum::{
     body::Bytes,
     extract::{Path, State},
     Json,
 };
+use dashmap::DashMap;
 use tracing::debug;
 use serde_json::{json, Value};
 use tokio::{
     fs,
-    io::{self, AsyncReadExt, BufWriter},
+    io::{self, AsyncReadExt, BufWriter}, sync::broadcast::Sender,
 };
 use uuid::Uuid;
 
@@ -129,16 +132,7 @@ pub async fn upload_avatar(
 pub async fn equip_avatar(Token(token): Token, State(state): State<AppState>) -> String {
     debug!("[API] S2C : Equip");
     let uuid = state.user_manager.get(&token.unwrap()).unwrap().uuid;
-    if state
-        .broadcasts
-        .get(&uuid)
-        .unwrap()
-        .send(S2CMessage::Event(uuid).to_vec())
-        .is_err()
-    {
-        debug!("[WebSocket] Failed to send Event! Maybe there is no one to send")
-        // TODO: Put into Handler
-    };
+    send_event(&state.broadcasts, &uuid);
     "ok".to_string()
 }
 
@@ -155,7 +149,18 @@ pub async fn delete_avatar(Token(token): Token, State(state): State<AppState>) -
         );
         let avatar_file = format!("avatars/{}.moon", user_info.uuid);
         fs::remove_file(avatar_file).await?;
+        send_event(&state.broadcasts, &user_info.uuid);
     }
     // let avatar_file = format!("avatars/{}.moon",user_info.uuid);
     Ok("ok".to_string())
+}
+
+fn send_event(broadcasts: &Arc<DashMap<Uuid, Sender<Vec<u8>>>>, uuid: &Uuid) {
+    if let Some(broadcast) = broadcasts.get(&uuid) {
+        if broadcast.send(S2CMessage::Event(*uuid).to_vec()).is_err() {
+            debug!("[WebSocket] Failed to send Event! There is no one to send. UUID: {uuid}")
+        };
+    } else {
+        debug!("[WebSocket] Failed to send Event! Can't find UUID: {uuid}")
+    };
 }
