@@ -42,7 +42,7 @@ use state::Config;
 
 // Utils
 mod utils;
-use utils::update_advanced_users;
+use utils::{check_updates, update_advanced_users};
 
 // // Config
 // mod config;
@@ -76,9 +76,9 @@ async fn main() -> Result<()> {
         .pretty()
         .init();
 
+    info!("The Sculptor v{}{}", SCULPTOR_VERSION, check_updates("shiroyashik/sculptor", &SCULPTOR_VERSION).await?);
+    
     let config_file = std::env::var("CONFIG_PATH").unwrap_or_else(|_| "Config.toml".into());
-
-    info!("The Sculptor v{}", SCULPTOR_VERSION);
     // Config
     let config = Arc::new(Mutex::new(Config::parse(config_file.clone().into())));
     let listen = config.lock().await.listen.clone();
