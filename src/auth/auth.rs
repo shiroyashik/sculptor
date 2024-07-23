@@ -2,11 +2,13 @@ use std::sync::Arc;
 
 use anyhow::anyhow;
 use axum::{
-    async_trait, extract::FromRequestParts, http::{request::Parts, StatusCode}
+    async_trait, extract::{FromRequestParts, State}, http::{request::Parts, StatusCode}, response::{IntoResponse, Response}
 };
 use dashmap::DashMap;
 use tracing::{debug, trace};
 use uuid::Uuid;
+
+use crate::AppState;
 
 use super::types::*;
 
@@ -137,7 +139,7 @@ impl UManager {
     ) -> Option<dashmap::mapref::one::Ref<'_, Uuid, Userinfo>> {
         self.registered.get(uuid)
     }
-    pub fn _is_authenticated(&self, token: &String) -> bool {
+    pub fn is_authenticated(&self, token: &String) -> bool {
         self.authenticated.contains_key(token)
     }
     pub fn _is_registered(&self, uuid: &Uuid) -> bool {
@@ -149,3 +151,20 @@ impl UManager {
     }
 }
 // End of User manager
+
+pub async fn check_auth(
+    Token(token): Token,
+    State(state): State<AppState>,
+) -> Response {
+
+    match token {
+        Some(token) => {
+            if state.user_manager.is_authenticated(&token) {
+                (StatusCode::OK, "ok".to_string()).into_response()
+            } else {
+                (StatusCode::UNAUTHORIZED, "unauthorized".to_string()).into_response()
+            }
+        },
+        None => (StatusCode::BAD_REQUEST, "bad request".to_string()).into_response(),
+    }
+}

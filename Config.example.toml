@@ -48,11 +48,13 @@ motd = """
 maxAvatarSize = 100000 # 100 KB
 maxAvatars = 10
 
-[advancedUsers.66004548-4de5-49de-bade-9c3933d8eb97]
-username = "Shiroyashik"
-authSystem = "elyby"
-special = [0,0,0,1,0,0] # 6
-pride = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0] # 25
+[advancedUsers]
+
+# [advancedUsers.66004548-4de5-49de-bade-9c3933d8eb97]
+# username = "Shiroyashik"
+# authSystem = "elyby"
+# special = [0,0,0,1,0,0] # 6
+# pride = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0] # 25
 
 ## With advancedUsers you can set additional parameters
 # [advancedUsers.your uuid here]

@@ -34,7 +34,7 @@ use api::{
 
 // Auth
 mod auth;
-use auth::UManager;
+use auth::{UManager, check_auth};
 
 // Config
 mod state;
@@ -112,6 +112,7 @@ async fn main() -> Result<()> {
     let api = Router::new()
         .nest("//auth", api_auth::router())
         .nest("/v1", api::v1::router())
+        .route("/", get(check_auth))
         .route("/limits", get(api_info::limits))
         .route("/version", get(api_info::version))
         .route("/motd", get(api_info::motd))
