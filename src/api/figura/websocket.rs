@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{sync::Arc, thread};
 
 use axum::{
     extract::{
@@ -99,7 +99,7 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
                                 };
                             },
                             None => {
-                                warn!("[WebSocket] Authenticaton error! Connection terminated!");
+                                warn!("[WebSocket] Authentication error! Connection terminated!");
                                 debug!("[WebSocket] Tried to log in with {token}"); // Tried to log in with token: {token}
                                 break;
                             },
@@ -173,9 +173,9 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
     }
     // Closing connection
     if let Some(u) = owner {
-        state.session.remove(&u.uuid);
+        // state.session.remove(&u.uuid); // FIXME: Temporary solution
         // state.broadcasts.remove(&u.uuid); // NOTE: Create broadcasts manager ??
-        state.user_manager.remove(&u.uuid);
+        // state.user_manager.remove(&u.uuid);
     }
 
 }
@@ -188,7 +188,7 @@ async fn subscribe(
     loop {
         tokio::select! {
             _ = shutdown.notified() => {
-                debug!("Shutdown SUB!");
+                debug!("SUB successfully closed!");
                 return;
             }
             msg = rx.recv() => {
@@ -196,11 +196,11 @@ async fn subscribe(
 
                 if let Some(msg) = msg {
                     if socket.send(msg.clone()).await.is_err() {
-                        error!("Forced shutdown SUB! Reciever closed connection?");
+                        debug!("Forced shutdown SUB! Client died?");
                         return;
                     };
                 } else {
-                    error!("Forced shutdown SUB! Sender closed connection?");
+                    debug!("Forced shutdown SUB! Source died?");
                     return;
                 }
             }
