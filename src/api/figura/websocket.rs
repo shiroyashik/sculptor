@@ -1,4 +1,4 @@
-use std::{sync::Arc, thread};
+use std::sync::Arc;
 
 use axum::{
     extract::{
@@ -173,9 +173,9 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
     }
     // Closing connection
     if let Some(u) = owner {
-        // state.session.remove(&u.uuid); // FIXME: Temporary solution
+        state.session.remove(&u.uuid); // FIXME: Temporary solution
         // state.broadcasts.remove(&u.uuid); // NOTE: Create broadcasts manager ??
-        // state.user_manager.remove(&u.uuid);
+        state.user_manager.remove(&u.uuid);
     }
 
 }

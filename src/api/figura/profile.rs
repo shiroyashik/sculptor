@@ -2,11 +2,10 @@ use std::sync::Arc;
 
 use anyhow_http::{http_error_ret, response::Result};
 use axum::{
-    body::Bytes,
-    extract::{Path, State},
-    Json,
+    body::Bytes, extract::{Path, State}, response::{IntoResponse, Response}
 };
 use dashmap::DashMap;
+use reqwest::StatusCode;
 use tracing::debug;
 use serde_json::{json, Value};
 use tokio::{
@@ -25,7 +24,7 @@ use super::types::S2CMessage;
 pub async fn user_info(
     Path(uuid): Path<Uuid>,
     State(state): State<AppState>,
-) -> Json<Value> {
+) -> Response {
     tracing::info!("Receiving profile information for {}", uuid);
 
     let formatted_uuid = format_uuid(&uuid);
@@ -34,7 +33,7 @@ pub async fn user_info(
 
     let auth_system = match state.user_manager.get_by_uuid(&uuid) {
         Some(d) => d.auth_system.to_string(),
-        None => return Json(json!("err")),
+        None => return (StatusCode::NO_CONTENT, "not sculptor user".to_string()).into_response(), //(StatusCode::NOT_FOUND, "not found".to_string()).into_response(),
     };
 
     let mut user_info_response = json!({
@@ -83,7 +82,7 @@ pub async fn user_info(
             }
         }
     }
-    Json(user_info_response)
+    (StatusCode::OK, user_info_response.to_string()).into_response()
 }
 
 pub async fn download_avatar(Path(uuid): Path<Uuid>) -> Result<Vec<u8>> {

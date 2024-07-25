@@ -118,7 +118,7 @@ async fn main() -> Result<()> {
         .route("/motd", get(api_info::motd))
         .route("/equip", post(api_profile::equip_avatar))
         .route("/:uuid", get(api_profile::user_info))
-        .route("/:uuid/avatar", get(api_profile::download_avatar).layer(DefaultBodyLimit::disable()))
+        .route("/:uuid/avatar", get(api_profile::download_avatar))
         .route("/avatar", put(api_profile::upload_avatar).layer(DefaultBodyLimit::disable()))
         .route("/avatar", delete(api_profile::delete_avatar));
 
