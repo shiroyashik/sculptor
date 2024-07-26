@@ -99,9 +99,10 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
                                 };
                             },
                             None => {
-                                warn!("[WebSocket] Authentication error! Connection terminated!");
+                                warn!("[WebSocket] Authentication error! Sending close with Re-auth code.");
                                 debug!("[WebSocket] Tried to log in with {token}"); // Tried to log in with token: {token}
-                                break;
+                                debug!("{:?}", socket.send(Message::Close(Some(axum::extract::ws::CloseFrame { code: 4000, reason: "Re-auth".into() }))).await);
+                                continue;
                             },
                         };
                     },
