@@ -34,7 +34,7 @@ pub async fn user_info(
     let auth_system = match state.user_manager.get_by_uuid(&uuid) {
         Some(d) => d.auth_system.to_string(),
         None => return     (
-            StatusCode::NO_CONTENT,
+            StatusCode::BAD_REQUEST,
             [(header::CONTENT_TYPE, "text/plain")],
             "err".to_string()
         )// (StatusCode::NO_CONTENT, "not sculptor user".to_string()), //(StatusCode::NOT_FOUND, "not found".to_string()).into_response(),
