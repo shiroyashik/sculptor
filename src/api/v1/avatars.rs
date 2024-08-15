@@ -1,21 +1,19 @@
-use axum::{body::Bytes, extract::{Path, State}, http::StatusCode, response::{IntoResponse, Response}};
+use axum::{body::Bytes, extract::{Path, State}};
 use tokio::{fs, io::{self, BufWriter}};
+use tracing::warn;
 use uuid::Uuid;
 
-use crate::{api::figura::profile::send_event, auth::Token, AppState};
+use crate::{api::figura::profile::send_event, auth::Token, ApiResult, AppState};
 
 pub async fn upload_avatar(
     Path(uuid): Path<Uuid>,
     Token(token): Token,
     State(state): State<AppState>,
     body: Bytes,
-) -> Response {
+) -> ApiResult<&'static str> {
     let request_data = body;
 
-    match state.config.lock().await.clone().verify_token(&token) {
-        Ok(_) => {},
-        Err(err) => return err,
-    };
+    state.config.read().await.clone().verify_token(&token)?;
 
     tracing::info!(
         "trying to upload the avatar for {}",
@@ -27,18 +25,15 @@ pub async fn upload_avatar(
     io::copy(&mut request_data.as_ref(), &mut file).await.unwrap();
     send_event(&state.broadcasts, &uuid);
 
-    (StatusCode::OK, "ok".to_string()).into_response()
+    Ok("ok")
 }
 
 pub async fn delete_avatar(
     Path(uuid): Path<Uuid>,
     Token(token): Token,
     State(state): State<AppState>
-) -> Response {
-    match state.config.lock().await.clone().verify_token(&token) {
-        Ok(_) => {},
-        Err(err) => return err,
-    };
+) -> ApiResult<&'static str> {
+    state.config.read().await.clone().verify_token(&token)?;
 
     tracing::info!(
         "trying to delete the avatar for {}",
@@ -48,9 +43,12 @@ pub async fn delete_avatar(
     let avatar_file = format!("avatars/{}.moon", &uuid);
     match fs::remove_file(avatar_file).await {
         Ok(_) => {},
-        Err(_) => return (StatusCode::NOT_FOUND, "avatar doesn't exist".to_string()).into_response()
+        Err(_) => {
+            warn!("avatar doesn't exist");
+            return Err(crate::ApiError::NotFound)
+        }
     };
     send_event(&state.broadcasts, &uuid);
 
-    (StatusCode::OK, "ok".to_string()).into_response()
+    Ok("ok")
 }

@@ -1,56 +1,71 @@
-use std::str::FromStr;
-
+use chrono::Utc;
 use serde::Deserialize;
 use uuid::Uuid;
-use anyhow::anyhow;
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Userinfo {
-    pub username: String,
     pub uuid: Uuid,
-    pub auth_system: AuthSystem,
+    pub username: String,
+    pub rank: String,
+    pub last_used: String,
+    pub auth_provider: AuthProvider,
     pub token: Option<String>,
+    pub version: String,
+    pub banned: bool
+    
+}
+
+impl Default for Userinfo {
+    fn default() -> Self {
+        Self {
+            uuid: Default::default(),
+            username: Default::default(),
+            rank: "default".to_string(),
+            last_used: Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
+            auth_provider: Default::default(),
+            token: Default::default(),
+            version: "0.1.4+1.20.1".to_string(),
+            banned: false
+        }
+    }
+}
+
+// new part
+
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AuthProvider {
+    pub name: String,
+    pub url: String,
+}
+
+impl Default for AuthProvider {
+    fn default() -> Self {
+        Self {
+            name: "Unknown".to_string(),
+            url: Default::default()
+        }
+    }
+}
+
+impl AuthProvider {
+    pub fn is_empty(&self) -> bool {
+        if self.name == "Unknown".to_string() {
+            true
+        } else {
+            false
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum AuthSystem {
-    Internal,
-    ElyBy,
-    Mojang,
+#[serde(rename_all = "camelCase")]
+pub struct AuthProviders(pub Vec<AuthProvider>);
+
+pub fn default_authproviders() -> AuthProviders {
+    AuthProviders(vec![
+        AuthProvider { name: "Mojang".to_string(), url: "https://sessionserver.mojang.com/session/minecraft/hasJoined".to_string() },
+        AuthProvider { name: "ElyBy".to_string(), url: "http://minecraft.ely.by/session/hasJoined".to_string() }
+        ])
 }
-
-impl ToString for AuthSystem {
-    fn to_string(&self) -> String {
-        match self {
-            AuthSystem::Internal => String::from("internal"),
-            AuthSystem::ElyBy => String::from("elyby"),
-            AuthSystem::Mojang => String::from("mojang"),
-        }
-    }
-}
-
-impl FromStr for AuthSystem {
-    type Err = anyhow::Error;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "internal" => Ok(Self::Internal),
-            "elyby" => Ok(Self::ElyBy),
-            "mojang" => Ok(Self::Mojang),
-            _ => Err(anyhow!("No auth system called: {s}"))
-        }
-    }
-}
-
-impl AuthSystem {
-    pub(super) fn get_url(&self) -> String {
-        match self {
-            AuthSystem::Internal => panic!("Can't get internal URL!"),
-            AuthSystem::ElyBy => String::from("http://minecraft.ely.by/session/hasJoined"),
-            AuthSystem::Mojang => String::from("https://sessionserver.mojang.com/session/minecraft/hasJoined"),
-        }
-    }
-}
-

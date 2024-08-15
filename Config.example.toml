@@ -4,9 +4,25 @@ listen = "0.0.0.0:6665"
 ## Don't touch if you don't know what you're doing
 # token = "<random symbols>"
 
+## Path to minecraft server folder
+## Sculptor try to use ban list from it
+# mcFolder = "~/minecraft_server"
+
+## Can't work without at least one provider!
+## If not set, default providers (Mojang, ElyBy) will be provided.
+# authProviders = [
+#     { name = "Mojang", url = "https://sessionserver.mojang.com/session/minecraft/hasJoined" },
+#     { name = "ElyBy", url = "http://minecraft.ely.by/session/hasJoined" },
+# ]
+
 ## Message of The Day
 ## It will be displayed to every player in the Figura menu who is connected to your server
-motd = """
+[motd]
+displayServerInfo = true
+sInfoUptime = "Uptime: "
+sInfoAuthClients = "Authenticated clients: " 
+sInfoDrawIndent = true
+customText = """
 [
     {
         "text": "You are connected to "
@@ -48,18 +64,15 @@ motd = """
 maxAvatarSize = 100000 # 100 KB
 maxAvatars = 10
 
-[advancedUsers]
-
-# [advancedUsers.66004548-4de5-49de-bade-9c3933d8eb97]
-# username = "Shiroyashik"
-# authSystem = "elyby"
-# special = [0,0,0,1,0,0] # 6
-# pride = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0] # 25
+[advancedUsers.66004548-4de5-49de-bade-9c3933d8eb97]
+username = "Shiroyashik"
+special = [0,0,0,1,0,0] # 6
+pride = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0] # 25
 
 ## With advancedUsers you can set additional parameters
 # [advancedUsers.your uuid here]
 # username = "Your_username_here"
-# authSystem = "mojang" # can be: mojang, elyby, internal (cant be authenticated)
+# banned = true
 # special = [0,1,0,0,0,0] # and set badges what you want! :D
 # pride = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
 

@@ -1,20 +1,16 @@
-use axum::{
-    extract::{Query, State},
-    http::StatusCode,
-    response::{IntoResponse, Response}
-};
-use tracing::debug;
+use axum::extract::{Query, State};
+use tracing::{debug, trace, warn};
 
-use crate::{auth::Token, AppState};
+use crate::{api::errors::{error_and_log, internal_and_log}, auth::Token, ApiResult, AppState};
 use super::types::UserUuid;
 
 pub(super) async fn verify(
     Token(token): Token,
     State(state): State<AppState>,
-) -> Response {
-    state.config.lock().await.clone()
-        .verify_token(&token)
-        .unwrap_or_else(|x| x)
+) -> ApiResult<&'static str> {
+    state.config.read().await.clone()
+        .verify_token(&token)?;
+    Ok("ok")
 }
 
 pub(super) async fn raw(
@@ -22,33 +18,23 @@ pub(super) async fn raw(
     Query(query): Query<UserUuid>,
     State(state): State<AppState>,
     body: String,
-) -> Response {
-    debug!(body = body);
-    match state.config.lock().await.clone().verify_token(&token) {
-        Ok(_) => {},
-        Err(e) => return e,
-    }
-    let payload = match hex::decode(body) {
-        Ok(v) => v,
-        Err(_) => return (StatusCode::NOT_ACCEPTABLE, "not raw data".to_string()).into_response(),
-    };
+) -> ApiResult<&'static str> {
+    trace!(body = body);
+    state.config.read().await.clone().verify_token(&token)?;
+    let payload = hex::decode(body).map_err(|err| { warn!("not raw data"); error_and_log(err, crate::ApiError::NotAcceptable) })?;
     debug!("{:?}", payload);
 
     match query.uuid {
         Some(uuid) => {
             // for only one
-            let tx = match state.session.get(&uuid) {
-                Some(d) => d,
-                None => return (StatusCode::NOT_FOUND, "unknown uuid".to_string()).into_response(),
-            };
-            match tx.value().send(payload).await {
-                Ok(_) => return (StatusCode::OK, "ok".to_string()).into_response(),
-                Err(_) => return (StatusCode::INTERNAL_SERVER_ERROR, "cant send".to_string()).into_response(),
-            };
+            let tx = state.session.get(&uuid).ok_or_else(|| { warn!("unknown uuid"); crate::ApiError::NotFound })?;
+            tx.value().send(payload).await.map_err(|err| internal_and_log(err))?;
+            Ok("ok")
         },
         None => {
             // for all
-            return (StatusCode::NOT_FOUND, "uuid doesnt defined".to_string()).into_response();
+            warn!("uuid doesnt defined");
+            Err(crate::ApiError::NotFound)
         },
     }
 }
@@ -58,33 +44,22 @@ pub(super) async fn sub_raw(
     Query(query): Query<UserUuid>,
     State(state): State<AppState>,
     body: String,
-) -> Response {
-    debug!(body = body);
-    match state.config.lock().await.clone().verify_token(&token) {
-        Ok(_) => {},
-        Err(e) => return e,
-    }
-    let payload = match hex::decode(body) {
-        Ok(v) => v,
-        Err(_) => return (StatusCode::NOT_ACCEPTABLE, "not raw data".to_string()).into_response(),
-    };
+) -> ApiResult<&'static str> {
+    trace!(body = body);
+    state.config.read().await.clone().verify_token(&token)?;
+    let payload = hex::decode(body).map_err(|err| { warn!("not raw data"); error_and_log(err, crate::ApiError::NotAcceptable) })?;
     debug!("{:?}", payload);
-
     
     match query.uuid {
         Some(uuid) => {
             // for only one
-            let tx = match state.broadcasts.get(&uuid) {
-                Some(d) => d,
-                None => return (StatusCode::NOT_FOUND, "unknown uuid".to_string()).into_response(),
-            };
-            match tx.value().send(payload) {
-                Ok(_) => return (StatusCode::OK, "ok".to_string()).into_response(),
-                Err(_) => return (StatusCode::INTERNAL_SERVER_ERROR, "cant send".to_string()).into_response(),
-            };
+            let tx = state.broadcasts.get(&uuid).ok_or_else(|| { warn!("unknown uuid"); crate::ApiError::NotFound })?;
+            tx.value().send(payload).map_err(|err| internal_and_log(err))?;
+            Ok("ok")
         },
         None => {
-            return (StatusCode::NOT_FOUND, "uuid doesnt defined".to_string()).into_response();
+            warn!("uuid doesnt defined");
+            Err(crate::ApiError::NotFound)
         },
     }
 }

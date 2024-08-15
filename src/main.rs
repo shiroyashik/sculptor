@@ -1,29 +1,18 @@
 use anyhow::Result;
 use axum::{
-    extract::DefaultBodyLimit, middleware::from_extractor, routing::{delete, get, post, put}, Router
+    extract::DefaultBodyLimit, routing::{delete, get, post, put}, Router
 };
 use dashmap::DashMap;
+use tracing_panic::panic_hook;
+use tracing_subscriber::{fmt::{self, time::ChronoLocal}, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 use std::sync::Arc;
-use tokio::sync::{broadcast, mpsc, Mutex};
+use tokio::{sync::{broadcast, mpsc, RwLock}, time::Instant};
 use tower_http::trace::TraceLayer;
 use tracing::info;
 use uuid::Uuid;
 
-// // WebSocket worker
-// mod ws;
-// use ws::handler;
-
-// // API: Auth
-// mod auth;
-// use auth::{self as api_auth, UManager};
-
-// // API: Server info
-// mod info;
-// use info as api_info;
-
-// // API: Profile
-// mod profile;
-// use profile as api_profile;
+// Errors
+pub use api::errors::{ApiResult, ApiError};
 
 // API
 mod api;
@@ -42,14 +31,12 @@ use state::Config;
 
 // Utils
 mod utils;
-use utils::{check_updates, update_advanced_users};
-
-// // Config
-// mod config;
-// use config::Config;
+use utils::{check_updates, get_log_file, update_advanced_users, update_bans_from_minecraft};
 
 #[derive(Debug, Clone)]
 pub struct AppState {
+    /// Uptime
+    uptime: Instant,
     /// User manager
     user_manager: Arc<UManager>,
     /// Send into WebSocket
@@ -57,57 +44,91 @@ pub struct AppState {
     /// Ping broadcasts for WebSocket connections
     broadcasts: Arc<DashMap<Uuid, broadcast::Sender<Vec<u8>>>>,
     /// Current configuration
-    config: Arc<Mutex<state::Config>>,
+    config: Arc<RwLock<state::Config>>,
 }
 
 const LOGGER_ENV: &'static str = "RUST_LOG";
+const CONFIG_ENV: &'static str = "RUST_CONFIG";
+const LOGS_ENV: &'static str = "LOGS_FOLDER";
 const SCULPTOR_VERSION: &'static str = env!("CARGO_PKG_VERSION");
+const REPOSITORY: &'static str = "shiroyashik/sculptor";
 
 #[tokio::main]
 async fn main() -> Result<()> {
     let _ = dotenvy::dotenv();
     // "trace,axum=info,tower_http=info,tokio=info,tungstenite=info,tokio_tungstenite=info",
     let logger_env = std::env::var(LOGGER_ENV).unwrap_or_else(|_| "info".into());
+    let config_file = std::env::var(CONFIG_ENV).unwrap_or_else(|_| "Config.toml".into());
+    let logs_folder = std::env::var(LOGS_ENV).unwrap_or_else(|_| "logs".into());
 
-    tracing_subscriber::fmt::fmt()
-        .with_env_filter(
-            logger_env
-        )
+    let file_appender = tracing_appender::rolling::never(&logs_folder, get_log_file(&logs_folder));
+    let timer = ChronoLocal::new(String::from("%Y-%m-%dT%H:%M:%S%.3f%:z"));
+
+    let file_layer = fmt::layer()
+        .with_ansi(false) // Disable ANSI colors for file logs
+        .with_timer(timer.clone())
         .pretty()
+        .with_writer(file_appender);
+
+    // Create a layer for the terminal
+    let terminal_layer = fmt::layer()
+        .with_ansi(true)
+        .with_timer(timer)
+        .pretty()
+        .with_writer(std::io::stdout);
+
+    // Combine the layers and set the global subscriber
+    tracing_subscriber::registry()
+        .with(EnvFilter::from(logger_env))
+        .with(file_layer)
+        .with(terminal_layer)
         .init();
 
-    info!("The Sculptor v{}{}", SCULPTOR_VERSION, check_updates("shiroyashik/sculptor", &SCULPTOR_VERSION).await?);
-    
-    let config_file = std::env::var("CONFIG_PATH").unwrap_or_else(|_| "Config.toml".into());
+    std::panic::set_hook(Box::new(panic_hook));
+    // let prev_hook = std::panic::take_hook();
+    // std::panic::set_hook(Box::new(move |panic_info| {
+    //     panic_hook(panic_info);
+    //     prev_hook(panic_info);
+    // }));
+
+    info!("The Sculptor v{}{}", SCULPTOR_VERSION, check_updates(REPOSITORY, &SCULPTOR_VERSION).await?);
+
     // Config
-    let config = Arc::new(Mutex::new(Config::parse(config_file.clone().into())));
-    let listen = config.lock().await.listen.clone();
+    let config = Arc::new(RwLock::new(Config::parse(config_file.clone().into())));
+    let listen = config.read().await.listen.clone();
 
     // State
     let state = AppState {
+        uptime: Instant::now(),
         user_manager: Arc::new(UManager::new()),
         session: Arc::new(DashMap::new()),
         broadcasts: Arc::new(DashMap::new()),
-        config: config,
+        config,
     };
 
     // Automatic update of configuration while the server is running
     let config_update = Arc::clone(&state.config);
     let user_manager = Arc::clone(&state.user_manager);
-    update_advanced_users(&config_update.lock().await.advanced_users, &user_manager);
+    update_advanced_users(&config_update.read().await.advanced_users.clone(), &user_manager);
     tokio::spawn(async move {
         loop {
             tokio::time::sleep(std::time::Duration::from_secs(10)).await;
             let new_config = Config::parse(config_file.clone().into());
-            let mut config = config_update.lock().await;
+            let mut config = config_update.write().await;
 
             if new_config != *config {
                 info!("Server configuration modification detected!");
                 *config = new_config;
-                update_advanced_users(&config.advanced_users, &user_manager);
+                update_advanced_users(&config.advanced_users.clone(), &user_manager);
             }
         }
     });
+    if state.config.read().await.mc_folder.exists() {
+        tokio::spawn(update_bans_from_minecraft(
+            state.config.read().await.mc_folder.clone(),
+            Arc::clone(&state.user_manager)
+        ));
+    }
 
     let api = Router::new()
         .nest("//auth", api_auth::router())
@@ -126,7 +147,6 @@ async fn main() -> Result<()> {
         .nest("/api", api)
         .route("/ws", get(ws))
         .route("/health", get(|| async { "ok" }))
-        .route_layer(from_extractor::<auth::Token>())
         .with_state(state)
         .layer(TraceLayer::new_for_http().on_request(()));
 
@@ -155,8 +175,13 @@ async fn shutdown_signal() {
     #[cfg(not(unix))]
     let terminate = std::future::pending::<()>();
     tokio::select! {
-        () = ctrl_c => {},
-        () = terminate => {},
+        () = ctrl_c => {
+            println!();
+            info!("Ctrl+C signal received");
+        },
+        () = terminate => {
+            println!();
+            info!("Terminate signal received");
+        },
     }
-    info!("Terminate signal received");
 }

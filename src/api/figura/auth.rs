@@ -1,7 +1,7 @@
 use axum::{debug_handler, extract::{Query, State}, response::{IntoResponse, Response}, routing::get, Router};
 use reqwest::StatusCode;
 use ring::digest::{self, digest};
-use tracing::{error, info};
+use tracing::info;
 
 use crate::{auth::{has_joined, Userinfo}, utils::rand, AppState};
 use super::types::auth::*;
@@ -33,24 +33,33 @@ async fn verify(
 ) -> Response {
     let server_id = query.id.clone();
     let username = state.user_manager.pending_remove(&server_id).unwrap().1; // TODO: Add error check
-    let userinfo = match has_joined(&server_id, &username).await {
+    let userinfo = match has_joined(
+        state.config.read().await.auth_providers.clone(),
+        &server_id,
+        &username
+    ).await {
         Ok(d) => d,
-        Err(e) => {
-            error!("[Authentication] {e}");
+        Err(_e) => {
+            // error!("[Authentication] {e}"); // In auth error log already defined
             return (StatusCode::INTERNAL_SERVER_ERROR, "internal verify error".to_string()).into_response();
         },
     };
-    if let Some((uuid, auth_system)) = userinfo {
-        info!("[Authentication] {username} logged in using {auth_system:?}");
-        let authenticated = state.user_manager;
-        authenticated.insert(
+    if let Some((uuid, auth_provider)) = userinfo {
+        let umanager = state.user_manager;
+        if umanager.is_banned(&uuid) {
+            info!("[Authentication] {username} tried to log in, but was banned");
+            return (StatusCode::BAD_REQUEST, "You're banned!".to_string()).into_response();
+        }
+        info!("[Authentication] {username} logged in using {}", auth_provider.name);
+        umanager.insert(
             uuid,
             server_id.clone(),
             Userinfo {
                 username,
                 uuid,
-                auth_system,
                 token: Some(server_id.clone()),
+                auth_provider,
+                ..Default::default()
             },
         );
         (StatusCode::OK, server_id.to_string()).into_response()

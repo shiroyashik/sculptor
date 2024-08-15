@@ -1,20 +1,20 @@
 [package]
 name = "sculptor"
 authors = ["Shiroyashik <shiroyashik@shsr.ru>"]
-version = "0.2.3"
+version = "0.3.0-dev"
 edition = "2021"
 publish = false
 
 [dependencies]
 # Logging
 tracing-subscriber = { version = "0.3.18", features = ["env-filter", "chrono"] }
+tracing-appender = "0.2.3"
+tracing-panic = "0.1.2"
 tracing = "0.1.40"
 
 # Errors handelers
 anyhow = "1.0.83"
-anyhow-http = { version = "0.3.0", features = ["axum"] }
-
-# Serialization
+thiserror = "1.0.63"
 chrono = { version = "0.4.38", features = ["now", "serde"] }
 serde = { version = "1.0.201", features = ["derive"] }
 serde_json = "1.0.117"

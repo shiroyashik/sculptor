@@ -1,11 +1,9 @@
 use std::sync::Arc;
 
-use anyhow_http::{http_error_ret, response::Result};
 use axum::{
-    body::Bytes, extract::{Path, State}, response::IntoResponse, Json, http::header,
+    body::Bytes, extract::{Path, State}, Json
 };
 use dashmap::DashMap;
-use reqwest::StatusCode;
 use tracing::debug;
 use serde_json::{json, Value};
 use tokio::{
@@ -15,56 +13,46 @@ use tokio::{
 use uuid::Uuid;
 
 use crate::{
-    auth::Token,
-    utils::{calculate_file_sha256, format_uuid, get_correct_array},
-    AppState,
+    api::errors::internal_and_log, auth::Token, utils::{calculate_file_sha256, format_uuid}, ApiError, ApiResult, AppState
 };
 use super::types::S2CMessage;
 
 pub async fn user_info(
     Path(uuid): Path<Uuid>,
     State(state): State<AppState>,
-) -> impl IntoResponse {
+) -> ApiResult<Json<Value>> {
     tracing::info!("Receiving profile information for {}", uuid);
 
     let formatted_uuid = format_uuid(&uuid);
 
     let avatar_file = format!("avatars/{}.moon", formatted_uuid);
 
-    let auth_system = match state.user_manager.get_by_uuid(&uuid) {
-        Some(d) => d.auth_system.to_string(),
-        None => return     (
-            StatusCode::BAD_REQUEST,
-            [(header::CONTENT_TYPE, "text/plain")],
-            "err".to_string()
-        )// (StatusCode::NO_CONTENT, "not sculptor user".to_string()), //(StatusCode::NOT_FOUND, "not found".to_string()).into_response(),
+    let userinfo = if let Some(info) = state.user_manager.get_by_uuid(&uuid) { info } else {
+        return Err(ApiError::BadRequest) // NOTE: Not Found (404) shows badge
     };
 
     let mut user_info_response = json!({
         "uuid": &formatted_uuid,
-        "rank": "default",
+        "rank": userinfo.rank,
         "equipped": [],
-        "lastUsed": "2024-05-11T22:20:48.884Z",
+        "lastUsed": userinfo.last_used,
         "equippedBadges": {
             "special": [0,0,0,0,0,0],
             "pride": [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
         },
-        "version": "0.1.4+1.20.1",
-        "banned": false,
-        "authSystem": auth_system
+        "version": userinfo.version,
+        "banned": userinfo.banned
     });
 
-    if let Some(settings) = state.config.lock().await.advanced_users.get(&formatted_uuid) {
-        let pride = get_correct_array(settings.get("pride").unwrap());
-        let special = get_correct_array(settings.get("special").unwrap());
+    if let Some(settings) = state.config.read().await.advanced_users.clone().get(&uuid) {
         let badges = user_info_response
             .get_mut("equippedBadges")
             .and_then(Value::as_object_mut)
             .unwrap();
         badges.append(
             json!({
-                "special": special,
-                "pride": pride
+                "special": settings.special,
+                "pride": settings.pride
             })
             .as_object_mut()
             .unwrap(),
@@ -86,28 +74,19 @@ pub async fn user_info(
             }
         }
     }
-    (
-        StatusCode::OK,
-        [(header::CONTENT_TYPE, "application/json")],
-        user_info_response.to_string()
-    )
+    Ok(Json(user_info_response))
 }
 
-pub async fn download_avatar(Path(uuid): Path<Uuid>) -> Result<Vec<u8>> {
+pub async fn download_avatar(Path(uuid): Path<Uuid>) -> ApiResult<Vec<u8>> {
     let uuid = format_uuid(&uuid);
     tracing::info!("Requesting an avatar: {}", uuid);
     let mut file = if let Ok(file) = fs::File::open(format!("avatars/{}.moon", uuid)).await {
         file
     } else {
-        http_error_ret!(NOT_FOUND, "Error! This avatar does not exist!");
+        return Err(ApiError::NotFound)
     };
     let mut buffer = Vec::new();
-    file.read_to_end(&mut buffer).await?;
-    //match Body::from_file("avatars/74cf2ba3-f346-4dfe-b3b5-f453b9f5cc5e.moon").await  {
-    // match Body::from_file(format!("avatars/{}.moon",uuid)).await  {
-    //     Ok(body) => Ok(Response::builder(StatusCode::Ok).body(body).build()),
-    //     Err(e) => Err(e.into()),
-    // }
+    file.read_to_end(&mut buffer).await.map_err(|err| internal_and_log(err))?;
     Ok(buffer)
 }
 
@@ -115,13 +94,8 @@ pub async fn upload_avatar(
     Token(token): Token,
     State(state): State<AppState>,
     body: Bytes,
-) -> Result<String> {
+) -> ApiResult<String> {
     let request_data = body;
-
-    let token = match token {
-        Some(t) => t,
-        None => http_error_ret!(UNAUTHORIZED, "Authentication error!"),
-    };
 
     if let Some(user_info) = state.user_manager.get(&token) {
         tracing::info!(
@@ -130,24 +104,20 @@ pub async fn upload_avatar(
             user_info.username
         );
         let avatar_file = format!("avatars/{}.moon", user_info.uuid);
-        let mut file = BufWriter::new(fs::File::create(&avatar_file).await?);
-        io::copy(&mut request_data.as_ref(), &mut file).await?;
+        let mut file = BufWriter::new(fs::File::create(&avatar_file).await.map_err(|err| internal_and_log(err))?);
+        io::copy(&mut request_data.as_ref(), &mut file).await.map_err(|err| internal_and_log(err))?;
     }
     Ok("ok".to_string())
 }
 
-pub async fn equip_avatar(Token(token): Token, State(state): State<AppState>) -> String {
+pub async fn equip_avatar(Token(token): Token, State(state): State<AppState>) -> ApiResult<&'static str> {
     debug!("[API] S2C : Equip");
-    let uuid = state.user_manager.get(&token.unwrap()).unwrap().uuid;
+    let uuid = state.user_manager.get(&token).ok_or_else(|| ApiError::Unauthorized)?.uuid;
     send_event(&state.broadcasts, &uuid);
-    "ok".to_string()
+    Ok("ok")
 }
 
-pub async fn delete_avatar(Token(token): Token, State(state): State<AppState>) -> Result<String> {
-    let token = match token {
-        Some(t) => t,
-        None => http_error_ret!(UNAUTHORIZED, "Authentication error!"),
-    };
+pub async fn delete_avatar(Token(token): Token, State(state): State<AppState>) -> ApiResult<String> {
     if let Some(user_info) = state.user_manager.get(&token) {
         tracing::info!(
             "{} ({}) is trying to delete the avatar",
@@ -155,7 +125,7 @@ pub async fn delete_avatar(Token(token): Token, State(state): State<AppState>) -
             user_info.username
         );
         let avatar_file = format!("avatars/{}.moon", user_info.uuid);
-        fs::remove_file(avatar_file).await?;
+        fs::remove_file(avatar_file).await.map_err(|err| internal_and_log(err))?;
         send_event(&state.broadcasts, &user_info.uuid);
     }
     // let avatar_file = format!("avatars/{}.moon",user_info.uuid);

@@ -1,7 +1,10 @@
 /target
 /Assets-main
 /avatars
+/logs
 output.log
 docker-compose.yml
 Config.toml
 .env
+perf.data*
+banned-players.json

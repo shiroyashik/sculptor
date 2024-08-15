@@ -53,3 +53,9 @@ Pride badges
 23 Полисексуал
 24 Прайд
 25 Трансгендер
+
+Toast
+0 Blue (Default)
+1 Yellow (Warning)
+2 Red (Error)
+3 Cookie! (OwO)

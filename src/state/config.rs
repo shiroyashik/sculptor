@@ -1,37 +1,37 @@
-use std::{io::Read, path::PathBuf};
+use std::{collections::HashMap, io::Read, path::PathBuf};
 
 use serde::Deserialize;
-use toml::Table;
+use tracing::{debug, warn};
+use uuid::Uuid;
+
+use crate::auth::{default_authproviders, AuthProviders, Userinfo};
 
 #[derive(Deserialize, Clone, Debug, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Config {
     pub listen: String,
     pub token: Option<String>,
-    pub motd: String,
+    pub motd: CMotd,
+    #[serde(default = "default_authproviders")]
+    pub auth_providers: AuthProviders,
     pub limitations: Limitations,
-    pub advanced_users: Table,
+    #[serde(default)]
+    pub mc_folder: PathBuf,
+    #[serde(default)]
+    pub advanced_users: HashMap<Uuid, AdvancedUsers>,
 }
 
-impl Config {
-    pub fn verify_token(&self, suspicious: &Option<String>) -> Result<axum::response::Response, axum::response::Response> {
-        use axum::{http::StatusCode, response::IntoResponse};
-        match &self.token {
-            Some(token) => {
-                match suspicious {
-                    Some(suspicious) => {
-                        if token == suspicious {
-                            return Ok((StatusCode::OK, "ok".to_string()).into_response())
-                        } else {
-                            return Err((StatusCode::UNAUTHORIZED, "wrong token".to_string()).into_response())
-                        }
-                    },
-                    None => return Err((StatusCode::UNAUTHORIZED, "unauthorized".to_string()).into_response())
-                }
-            },
-            None => return Err((StatusCode::LOCKED, "token doesnt defined".to_string()).into_response()),
-        }
-    }
+#[derive(Deserialize, Clone, Debug, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct CMotd {
+    pub display_server_info: bool,
+    pub custom_text: String,
+    #[serde(rename = "sInfoUptime")]
+    pub text_uptime: String,
+    #[serde(rename = "sInfoAuthClients")]
+    pub text_authclients: String,
+    #[serde(rename = "sInfoDrawIndent")]
+    pub draw_indent: bool,
 }
 
 #[derive(Deserialize, Clone, Debug, PartialEq)]
@@ -41,6 +41,37 @@ pub struct Limitations {
     pub max_avatars: u64,
 }
 
+#[derive(Deserialize, Clone, Debug, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct AdvancedUsers {
+    #[serde(default)]
+    pub username: String,
+    #[serde(default)]
+    pub banned: bool,
+    #[serde(default)]
+    pub special: [u8;6],
+    #[serde(default)]
+    pub pride: [u8;25],
+}
+
+#[derive(Deserialize, Clone, Debug, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct BannedPlayer {
+    pub uuid: Uuid,
+    pub name: String,
+}
+
+impl Into<Userinfo> for BannedPlayer {
+    fn into(self) -> Userinfo {
+        Userinfo {
+            uuid: self.uuid,
+            username: self.name,
+            banned: true,
+            ..Default::default()
+        }
+    }
+}
+
 impl Config {
     pub fn parse(path: PathBuf) -> Self {
         let mut file = std::fs::File::open(path).expect("Access denied or file doesn't exists!");
@@ -48,5 +79,24 @@ impl Config {
         file.read_to_string(&mut data).unwrap();
 
         toml::from_str(&data).unwrap()
+    }
+
+    pub fn verify_token(&self, suspicious: &str) -> crate::ApiResult<()> {
+        use crate::ApiError;
+        match &self.token {
+            Some(token) => {
+                if token == suspicious {
+                    debug!("Admin token passed!");
+                    Ok(())
+                } else {
+                    warn!("Unknown tryed to use admin functions, but use wrong token!");
+                    Err(ApiError::Unauthorized)
+                }
+            },
+            None => {
+                warn!("Unknown tryed to use admin functions, but token is not defined!");
+                Err(ApiError::BadRequest)
+            },
+        }
     }
 }

@@ -63,6 +63,16 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
                     debug!("[WebSocket{}] Receive error! Connection terminated!", owner.name());
                     break;
                 };
+                // Checking ban list
+                if let Some(ref user) = owner {
+                    if state.user_manager.is_banned(&user.uuid) {
+                        warn!("[WebSocket] Detected banned user with active WebSocket! Sending close with Banned code.");
+                        let _ = socket.send(Message::Binary(S2CMessage::Toast(2, "You're banned!", None).to_vec())).await; // option слищком жирный Some("Reason: Lorum Ipsum interсно сколько влезет~~~ 0w0.")
+                        tokio::time::sleep(std::time::Duration::from_secs(6)).await;
+                        debug!("{:?}", socket.send(Message::Close(Some(axum::extract::ws::CloseFrame { code: 4001, reason: "You're banned!".into() }))).await);
+                        continue;
+                    }
+                }
                 // Next is the code for processing msg
                 let msg_vec = msg.clone().into_data();
                 let msg_array = msg_vec.as_slice();
@@ -70,8 +80,10 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
                 let newmsg = match C2SMessage::try_from(msg_array) {
                     Ok(data) => data,
                     Err(e) => {
-                        error!("[WebSocket{}] This message is not from Figura! {e:?}", owner.name());
-                        break;
+                        error!("[WebSocket{}] This message is not from Figura! {}", owner.name(), e.to_string());
+                        debug!("[WebSocket{}] Broken data: {}", owner.name(), hex::encode(msg_vec));
+                        continue;
+                        // break;
                     },
                 };
 
