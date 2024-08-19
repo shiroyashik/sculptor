@@ -5,11 +5,15 @@ use axum::{
 use dashmap::DashMap;
 use tracing_panic::panic_hook;
 use tracing_subscriber::{fmt::{self, time::ChronoLocal}, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
-use std::sync::Arc;
-use tokio::{sync::{broadcast, mpsc, RwLock}, time::Instant};
+use std::{path::PathBuf, sync::Arc};
+use tokio::{fs, sync::{broadcast, mpsc, RwLock}, time::Instant};
 use tower_http::trace::TraceLayer;
 use tracing::info;
 use uuid::Uuid;
+
+// Consts
+mod consts;
+pub use consts::*;
 
 // Errors
 pub use api::errors::{ApiResult, ApiError};
@@ -31,7 +35,7 @@ use state::Config;
 
 // Utils
 mod utils;
-use utils::{check_updates, get_log_file, update_advanced_users, update_bans_from_minecraft};
+use utils::{check_updates, get_log_file, update_advanced_users, update_bans_from_minecraft, FiguraVersions};
 
 #[derive(Debug, Clone)]
 pub struct AppState {
@@ -45,13 +49,9 @@ pub struct AppState {
     broadcasts: Arc<DashMap<Uuid, broadcast::Sender<Vec<u8>>>>,
     /// Current configuration
     config: Arc<RwLock<state::Config>>,
+    /// Figura Versions
+    figura_versions: Arc<RwLock<Option<FiguraVersions>>>,
 }
-
-const LOGGER_ENV: &'static str = "RUST_LOG";
-const CONFIG_ENV: &'static str = "RUST_CONFIG";
-const LOGS_ENV: &'static str = "LOGS_FOLDER";
-const SCULPTOR_VERSION: &'static str = env!("CARGO_PKG_VERSION");
-const REPOSITORY: &'static str = "shiroyashik/sculptor";
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -92,6 +92,14 @@ async fn main() -> Result<()> {
     // }));
 
     info!("The Sculptor v{}{}", SCULPTOR_VERSION, check_updates(REPOSITORY, &SCULPTOR_VERSION).await?);
+    
+    {
+        let path = PathBuf::from("avatars");
+        if !path.exists() {
+            fs::create_dir(path).await.expect("Can't create avatars folder!");
+            info!("Created avatars directory");
+        }
+    }
 
     // Config
     let config = Arc::new(RwLock::new(Config::parse(config_file.clone().into())));
@@ -103,6 +111,7 @@ async fn main() -> Result<()> {
         user_manager: Arc::new(UManager::new()),
         session: Arc::new(DashMap::new()),
         broadcasts: Arc::new(DashMap::new()),
+        figura_versions: Arc::new(RwLock::new(None)),
         config,
     };
 

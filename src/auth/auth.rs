@@ -1,4 +1,4 @@
-use std::{sync::Arc, time::Duration};
+use std::sync::Arc;
 
 use anyhow::anyhow;
 use axum::{
@@ -8,11 +8,9 @@ use dashmap::DashMap;
 use tracing::{debug, error, trace};
 use uuid::Uuid;
 
-use crate::{ApiError, ApiResult, AppState};
+use crate::{ApiError, ApiResult, AppState, TIMEOUT, USER_AGENT};
 
 use super::types::*;
-
-const TIMEOUT: Duration = Duration::from_secs(5);
 
 // It's an extractor that pulls a token from the Header.
 #[derive(PartialEq, Debug)]
@@ -63,7 +61,7 @@ async fn fetch_json(
     server_id: &str,
     username: &str,
 ) -> anyhow::Result<anyhow::Result<(Uuid, AuthProvider)>> {
-    let client = reqwest::Client::builder().timeout(TIMEOUT).build().unwrap();
+    let client = reqwest::Client::builder().timeout(TIMEOUT).user_agent(USER_AGENT).build().unwrap();
     let url = auth_provider.url.clone();
 
     let res = client

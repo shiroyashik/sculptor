@@ -1,8 +1,10 @@
 use anyhow::anyhow;
 use reqwest::Client;
 use semver::Version;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use tracing::error;
+
+use crate::{FIGURA_RELEASES_URL, TIMEOUT, USER_AGENT};
 
 #[derive(Deserialize, Debug)]
 struct Tag {
@@ -11,8 +13,8 @@ struct Tag {
 
 async fn get_latest_version(repo: &str, current_version: Version) -> anyhow::Result<Option<String>> {
     let url = format!("https://api.github.com/repos/{repo}/tags");
-    let client = Client::new();
-    let response = client.get(&url).header("User-Agent", "reqwest").send().await?;
+    let client = Client::builder().timeout(TIMEOUT).user_agent(USER_AGENT).build().unwrap();
+    let response = client.get(&url).send().await?;
 
     if response.status().is_success() {
         let tags: Vec<Tag> = response.json().await?;
@@ -55,3 +57,50 @@ pub async fn check_updates(repo: &str, current_version: &str) -> anyhow::Result<
     }
 }
 
+// Figura
+
+#[derive(Deserialize, Debug)]
+struct Release {
+    tag_name: String,
+    prerelease: bool
+}
+
+pub async fn get_figura_versions() -> anyhow::Result<FiguraVersions> {
+    let client = Client::builder().timeout(TIMEOUT).user_agent(USER_AGENT).build().unwrap();
+    let response = client.get(FIGURA_RELEASES_URL).send().await?;
+
+    let mut release_ver = Version::new(0, 0, 0);
+    let mut prerelease_ver = Version::new(0, 0, 0);
+
+    if response.status().is_success() {
+        let multiple_releases: Vec<Release> = response.json().await?;
+        for release in multiple_releases {
+            let tag_ver = if let Ok(res) = Version::parse(&release.tag_name) { res } else {
+                error!("Incorrect tag name! {release:?}");
+                continue;
+            };
+            if release.prerelease {
+                if tag_ver > prerelease_ver {
+                    prerelease_ver = tag_ver
+                }
+            } else {
+                if tag_ver > release_ver {
+                    release_ver = tag_ver
+                }
+            }
+        }
+        if release_ver > prerelease_ver {
+            prerelease_ver = release_ver.clone();
+        }
+        // Stop
+        Ok(FiguraVersions { release: release_ver.to_string(), prerelease: prerelease_ver.to_string() })
+    } else {
+        Err(anyhow!("Response status code: {}", response.status().as_u16()))
+    }
+}
+
+#[derive(Serialize, Debug, Clone)]
+pub struct FiguraVersions {
+    pub release: String,
+    pub prerelease: String
+}

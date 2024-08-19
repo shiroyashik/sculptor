@@ -13,7 +13,9 @@ use tokio::{
 use uuid::Uuid;
 
 use crate::{
-    api::errors::internal_and_log, auth::Token, utils::{calculate_file_sha256, format_uuid}, ApiError, ApiResult, AppState
+    api::errors::internal_and_log,
+    auth::Token, utils::{calculate_file_sha256, format_uuid},
+    ApiError, ApiResult, AppState
 };
 use super::types::S2CMessage;
 

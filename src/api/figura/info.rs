@@ -1,13 +1,29 @@
 use axum::{extract::State, Json};
 use serde_json::{json, Value};
+use tracing::error;
 
-use crate::{utils::get_motd, AppState};
+use crate::{
+    utils::{get_figura_versions, get_motd, FiguraVersions}, AppState, FIGURA_DEFAULT_VERSION
+};
 
-pub async fn version() -> Json<Value> {
-    Json(json!({
-        "release": "0.1.4",
-        "prerelease": "0.1.4"
-    }))
+pub async fn version(State(state): State<AppState>) -> Json<FiguraVersions> {
+    let res = state.figura_versions.read().await.clone();
+    if let Some(res) = res {
+        Json(res)
+    } else {
+        let actual = get_figura_versions().await;
+        if let Ok(res) = actual {
+            let mut stored = state.figura_versions.write().await;
+            *stored = Some(res);
+            return Json(stored.clone().unwrap())
+        } else {
+            error!("get_figura_versions: {:?}", actual.unwrap_err());
+        }
+        Json(FiguraVersions {
+            release: FIGURA_DEFAULT_VERSION.to_string(),
+            prerelease: FIGURA_DEFAULT_VERSION.to_string()
+        })
+    }
 }
 
 pub async fn motd(State(state): State<AppState>) -> String {

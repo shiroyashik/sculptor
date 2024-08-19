@@ -15,8 +15,9 @@ services:
     volumes:
       - ./Config.toml:/app/Config.toml:ro
       - ./avatars:/app/avatars
+      - ./logs:/app/logs
     environment:
-      - RUST_LOG=sculptor=info
+      - RUST_LOG=info
     ## Recommended for use with reverse proxy.
     # networks:
     #   - traefik

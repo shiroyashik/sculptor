@@ -16,6 +16,7 @@ WORKDIR /app
 COPY --from=builder /build/target/release/sculptor /app/sculptor
 
 VOLUME [ "/app/avatars" ]
+VOLUME [ "/app/logs" ]
 EXPOSE 6665/tcp
 
 CMD ["./sculptor"]
