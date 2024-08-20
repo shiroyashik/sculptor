@@ -1,4 +1,4 @@
-FROM rust:1.78.0-alpine3.20 as builder
+FROM rust:1.80.1-alpine3.20 as builder
 
 WORKDIR /build
 

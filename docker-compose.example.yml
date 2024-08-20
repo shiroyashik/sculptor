@@ -16,6 +16,9 @@ services:
       - ./Config.toml:/app/Config.toml:ro
       - ./avatars:/app/avatars
       - ./logs:/app/logs
+      # You can specify the path to the server folder
+      # for Sculptor to use the ban list from it
+      # - ./minecraft-server:/app/mc
     environment:
       - RUST_LOG=info
     ## Recommended for use with reverse proxy.

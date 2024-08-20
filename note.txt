@@ -1,4 +1,4 @@
-Коды ошибок WebSocket из Figura
+WebSocket close codes from Figura
 1000 Normal Closure
 1001 Going Away
 1002 Protocol Error
@@ -20,12 +20,12 @@
 4002 Too Many Connections
 
 Special badges
-1 Разработчик
-2 Член персонала официального сервера
-3 Победитель контеста
-4 Спасибо за поддержку
-5 Переводчик
-6 Художник текстур мода
+1 Разработчик                         | Figura Developer!
+2 Член персонала официального сервера | Official Figura Discord Staff!
+3 Победитель контеста                 | Figura contest winner! GG!
+4 Спасибо за поддержку                | Thank you for supporting the Figura mod!
+5 Переводчик                          | Figura mod Translator!
+6 Художник текстур мода               | Figura mod Texture Artist!
 
 Pride badges
 1  Агендерный
