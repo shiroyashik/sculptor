@@ -1,11 +1,12 @@
 use std::sync::Arc;
 
-use anyhow::anyhow;
+use anyhow::{anyhow, Context};
 use axum::{
     async_trait, extract::{FromRequestParts, State}, http::{request::Parts, StatusCode}
 };
 use dashmap::DashMap;
-use tracing::{debug, error, trace};
+use thiserror::Error;
+use tracing::{debug, error, trace, warn};
 use uuid::Uuid;
 
 use crate::{ApiError, ApiResult, AppState, TIMEOUT, USER_AGENT};
@@ -49,18 +50,28 @@ where
 
 // Work with external APIs
 /// Get UUID from JSON response
-#[inline]
-fn get_id_json(json: &serde_json::Value) -> anyhow::Result<Uuid> {
+fn get_id_json(json: &serde_json::Value) -> Result<Uuid, uuid::Error> {
     trace!("json: {json:#?}"); // For debugging, we'll get to this later!
     let uuid = Uuid::parse_str(json.get("id").unwrap().as_str().unwrap())?;
     Ok(uuid)
+}
+
+#[derive(Debug, Error)]
+enum FetchError {
+    #[error("invalid response code (expected 200), found {0}.\n    Response: {1:#?}")]
+    WrongResponse(u16, Result<String, reqwest::Error>),
+    #[error(transparent)]
+    SendError(#[from] reqwest::Error),
+    #[error(transparent)]
+    Other(#[from] anyhow::Error),
+
 }
 
 async fn fetch_json(
     auth_provider: &AuthProvider,
     server_id: &str,
     username: &str,
-) -> anyhow::Result<anyhow::Result<(Uuid, AuthProvider)>> {
+) -> Result<(Uuid, AuthProvider), FetchError> {
     let client = reqwest::Client::builder().timeout(TIMEOUT).user_agent(USER_AGENT).build().unwrap();
     let url = auth_provider.url.clone();
 
@@ -72,11 +83,11 @@ async fn fetch_json(
     trace!("{res:?}");
     match res.status().as_u16() {
         200 => {
-            let json = serde_json::from_str::<serde_json::Value>(&res.text().await?)?;
-            let uuid = get_id_json(&json)?;
-            Ok(Ok((uuid, auth_provider.clone())))
+            let json = serde_json::from_str::<serde_json::Value>(&res.text().await?).with_context(|| format!("Cant deserialize"))?;
+            let uuid = get_id_json(&json).with_context(|| format!("Cant get UUID"))?;
+            Ok((uuid, auth_provider.clone()))
         }
-        _ => Ok(Err(anyhow!("notOK: {} data: {:?}", res.status().as_u16(), res.text().await))),
+        _ => Err(FetchError::WrongResponse(res.status().as_u16(), res.text().await)),
     }
 }
 
@@ -100,14 +111,15 @@ pub async fn has_joined(
     let mut prov_count: usize = authproviders.len();
     while prov_count > 0 {
         if let Some(fetch_res) = rx.recv().await {
-            if let Ok(user_res) = fetch_res {
-                if let Ok(data) = user_res {
-                    return Ok(Some(data))
-                } else {
-                    misses.push(user_res.unwrap_err());
-                }
-            } else {
-                errors.push(fetch_res.unwrap_err());
+            match fetch_res {
+                Ok(data) => return Ok(Some(data)),
+                Err(err) => {
+                    match err {
+                        FetchError::WrongResponse(code, data) => misses.push((code, data)),
+                        FetchError::SendError(err) => errors.push(err.to_string()),
+                        FetchError::Other(err) => errors.push(err.to_string()),
+                    }
+                },
             }
         } else {
             error!("Unexpected behavior!");
@@ -134,7 +146,7 @@ async fn fetch_and_send(
     provider: AuthProvider,
     server_id: String,
     username: String,
-    tx: tokio::sync::mpsc::Sender<anyhow::Result<anyhow::Result<(Uuid, AuthProvider)>>>
+    tx: tokio::sync::mpsc::Sender<Result<(Uuid, AuthProvider), FetchError>>
 ) {
     let _ = tx.send(fetch_json(&provider, &server_id, &username).await)
         .await.map_err( |err| trace!("fetch_and_send error [note: ok res returned and mpsc clossed]: {err:?}"));
@@ -159,15 +171,34 @@ impl UManager {
             authenticated: Arc::new(DashMap::new()),
         }
     }
+    pub fn get_all_registered(&self) -> DashMap<Uuid, Userinfo> {
+        self.registered.as_ref().clone()
+    }
+    pub fn get_all_authenticated(&self) -> DashMap<String, Uuid> {
+        self.authenticated.as_ref().clone()
+    }
     pub fn pending_insert(&self, server_id: String, username: String) {
         self.pending.insert(server_id, username);
     }
     pub fn pending_remove(&self, server_id: &str) -> Option<(String, String)> {
         self.pending.remove(server_id)
     }
-    pub fn insert(&self, uuid: Uuid, token: String, userinfo: Userinfo) {
+    pub fn insert(&self, uuid: Uuid, token: String, userinfo: Userinfo) -> Result<(), ()> {
+        // Check for the presence of an active session.
+        if let Some(userinfo) = self.registered.get(&uuid) {
+            if let Some(token) = &userinfo.token {
+                if self.authenticated.contains_key(token) {
+                    warn!("Rejected attempt to create a second session for the same user!");
+                    return Err(())
+                }
+                debug!("`{}` already have token in registered profile (old token already removed from 'authenticated')", userinfo.username);
+            }
+        }
+
+        // Adding a user
         self.authenticated.insert(token, uuid);
         self.insert_user(uuid, userinfo);
+        Ok(())
     }
     pub fn insert_user(&self, uuid: Uuid, userinfo: Userinfo) {
         // self.registered.insert(uuid, userinfo)
@@ -228,7 +259,7 @@ pub async fn check_auth(
     token: Option<Token>,
     State(state): State<AppState>,
 ) -> ApiResult<&'static str> {
-
+    debug!("Checking auth actuality...");
     match token {
         Some(token) => {
             token.check_auth(&state).await?;

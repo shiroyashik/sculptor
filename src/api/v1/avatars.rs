@@ -23,7 +23,7 @@ pub async fn upload_avatar(
     let avatar_file = format!("avatars/{}.moon", &uuid);
     let mut file = BufWriter::new(fs::File::create(&avatar_file).await.unwrap());
     io::copy(&mut request_data.as_ref(), &mut file).await.unwrap();
-    send_event(&state.broadcasts, &uuid);
+    send_event(&state, &uuid).await;
 
     Ok("ok")
 }
@@ -48,7 +48,7 @@ pub async fn delete_avatar(
             return Err(crate::ApiError::NotFound)
         }
     };
-    send_event(&state.broadcasts, &uuid);
+    send_event(&state, &uuid).await;
 
     Ok("ok")
 }

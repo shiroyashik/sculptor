@@ -91,7 +91,7 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
 
                 match newmsg {
                     C2SMessage::Token(token) => {
-                    debug!("[WebSocket{}] C2S : Token", owner.name());
+                        trace!("[WebSocket{}] C2S : Token", owner.name());
                         let token = String::from_utf8(token.to_vec()).unwrap();
                         match state.user_manager.get(&token) { // The principle is simple: if there is no token in authenticated, then it's "dirty hacker" :D
                             Some(t) => {
@@ -119,7 +119,7 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
                         };
                     },
                     C2SMessage::Ping(_, _, _) => {
-                        debug!("[WebSocket{}] C2S : Ping", owner.name());
+                        trace!("[WebSocket{}] C2S : Ping", owner.name());
                         let data = into_s2c_ping(msg_vec, owner.clone().unwrap().uuid);
                         match bctx.clone().unwrap().send(data) {
                             Ok(_) => (),
@@ -129,7 +129,7 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
                     },
                     // Subscribing
                     C2SMessage::Sub(uuid) => { // TODO: Eliminate the possibility of using SUB without authentication
-                        debug!("[WebSocket{}] C2S : Sub", owner.name());
+                        trace!("[WebSocket{}] C2S : Sub", owner.name());
                         // Ignoring self Sub
                         if uuid == owner.clone().unwrap().uuid {
                             continue;
@@ -152,7 +152,7 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
                     },
                     // Unsubscribing
                     C2SMessage::Unsub(uuid) => {
-                        debug!("[WebSocket{}] C2S : Unsub", owner.name());
+                        trace!("[WebSocket{}] C2S : Unsub", owner.name());
                         // Ignoring self Unsub
                         if uuid == owner.clone().unwrap().uuid {
                             continue;
@@ -186,11 +186,13 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
     }
     // Closing connection
     if let Some(u) = owner {
+        debug!("[WebSocket ({})] Removing session data", u.username);
         state.session.remove(&u.uuid); // FIXME: Temporary solution
         // state.broadcasts.remove(&u.uuid); // NOTE: Create broadcasts manager ??
         state.user_manager.remove(&u.uuid);
+    } else {
+        debug!("[WebSocket] Nothing to remove");
     }
-
 }
 
 async fn subscribe(

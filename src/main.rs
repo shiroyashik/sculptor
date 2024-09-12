@@ -140,9 +140,8 @@ async fn main() -> Result<()> {
     }
 
     let api = Router::new()
-        .nest("//auth", api_auth::router())
+        .nest("//auth", api_auth::router()) // => /api//auth ¯\_(ツ)_/¯
         .nest("/v1", api::v1::router())
-        .route("/", get(check_auth))
         .route("/limits", get(api_info::limits))
         .route("/version", get(api_info::version))
         .route("/motd", get(api_info::motd))
@@ -154,10 +153,11 @@ async fn main() -> Result<()> {
 
     let app = Router::new()
         .nest("/api", api)
+        .route("/api/", get(check_auth))
         .route("/ws", get(ws))
-        .route("/health", get(|| async { "ok" }))
         .with_state(state)
-        .layer(TraceLayer::new_for_http().on_request(()));
+        .layer(TraceLayer::new_for_http().on_request(()))
+        .route("/health", get(|| async { "ok" }));
 
     let listener = tokio::net::TcpListener::bind(listen).await?;
     info!("Listening on {}", listener.local_addr()?);

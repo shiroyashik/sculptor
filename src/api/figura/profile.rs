@@ -1,14 +1,11 @@
-use std::sync::Arc;
-
 use axum::{
     body::Bytes, extract::{Path, State}, Json
 };
-use dashmap::DashMap;
 use tracing::debug;
 use serde_json::{json, Value};
 use tokio::{
     fs,
-    io::{self, AsyncReadExt, BufWriter}, sync::broadcast::Sender,
+    io::{self, AsyncReadExt, BufWriter},
 };
 use uuid::Uuid;
 
@@ -115,7 +112,7 @@ pub async fn upload_avatar(
 pub async fn equip_avatar(Token(token): Token, State(state): State<AppState>) -> ApiResult<&'static str> {
     debug!("[API] S2C : Equip");
     let uuid = state.user_manager.get(&token).ok_or_else(|| ApiError::Unauthorized)?.uuid;
-    send_event(&state.broadcasts, &uuid);
+    send_event(&state, &uuid).await;
     Ok("ok")
 }
 
@@ -128,16 +125,25 @@ pub async fn delete_avatar(Token(token): Token, State(state): State<AppState>) -
         );
         let avatar_file = format!("avatars/{}.moon", user_info.uuid);
         fs::remove_file(avatar_file).await.map_err(|err| internal_and_log(err))?;
-        send_event(&state.broadcasts, &user_info.uuid);
+        send_event(&state, &user_info.uuid).await;
     }
     // let avatar_file = format!("avatars/{}.moon",user_info.uuid);
     Ok("ok".to_string())
 }
 
-pub fn send_event(broadcasts: &Arc<DashMap<Uuid, Sender<Vec<u8>>>>, uuid: &Uuid) {
-    if let Some(broadcast) = broadcasts.get(&uuid) {
+pub async fn send_event(state: &AppState, uuid: &Uuid) {
+    // To user subscribers
+    if let Some(broadcast) = state.broadcasts.get(&uuid) {
         if broadcast.send(S2CMessage::Event(*uuid).to_vec()).is_err() {
             debug!("[WebSocket] Failed to send Event! There is no one to send. UUID: {uuid}")
+        };
+    } else {
+        debug!("[WebSocket] Failed to send Event! Can't find UUID: {uuid}")
+    };
+    // To user
+    if let Some(session) = state.session.get(&uuid) {
+        if session.send(S2CMessage::Event(*uuid).to_vec()).await.is_err() {
+            debug!("[WebSocket] Failed to send Event! WS doesn't connected? UUID: {uuid}")
         };
     } else {
         debug!("[WebSocket] Failed to send Event! Can't find UUID: {uuid}")

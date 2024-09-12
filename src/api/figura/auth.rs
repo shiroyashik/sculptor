@@ -1,7 +1,7 @@
 use axum::{debug_handler, extract::{Query, State}, response::{IntoResponse, Response}, routing::get, Router};
 use reqwest::StatusCode;
 use ring::digest::{self, digest};
-use tracing::info;
+use tracing::{error, info};
 
 use crate::{auth::{has_joined, Userinfo}, utils::rand, AppState};
 use super::types::auth::*;
@@ -51,17 +51,23 @@ async fn verify(
             return (StatusCode::BAD_REQUEST, "You're banned!".to_string()).into_response();
         }
         info!("[Authentication] {username} logged in using {}", auth_provider.name);
-        umanager.insert(
+        let userinfo = Userinfo {
+            username,
             uuid,
-            server_id.clone(),
-            Userinfo {
-                username,
-                uuid,
-                token: Some(server_id.clone()),
-                auth_provider,
-                ..Default::default()
-            },
-        );
+            token: Some(server_id.clone()),
+            auth_provider,
+            ..Default::default()
+        };
+        match umanager.insert(uuid, server_id.clone(), userinfo.clone()) {
+            Ok(_) => {},
+            Err(_) => {
+                umanager.remove(&uuid);
+                if umanager.insert(uuid, server_id.clone(), userinfo).is_err() {
+                    error!("Old token error after attempting to remove it! Unexpected behavior!");
+                    return (StatusCode::BAD_REQUEST, "second session detected".to_string()).into_response();
+                };
+            }
+        }
         (StatusCode::OK, server_id.to_string()).into_response()
     } else {
         info!("[Authentication] failed to verify {username}");

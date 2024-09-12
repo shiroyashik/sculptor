@@ -5,7 +5,7 @@ use axum::{
 use tracing::{debug, info};
 use uuid::Uuid;
 
-use crate::{auth::{Token, Userinfo}, ApiResult, AppState};
+use crate::{api::errors::internal_and_log, auth::{Token, Userinfo}, ApiResult, AppState};
 
 pub(super) async fn create_user(
     Token(token): Token,
@@ -44,4 +44,22 @@ pub(super) async fn unban(
     
     state.user_manager.unban(&uuid);
     Ok("ok")
+}
+
+pub(super) async fn list(
+    Token(token): Token,
+    State(state): State<AppState>,
+) -> ApiResult<String> {
+    state.config.read().await.clone().verify_token(&token)?;
+
+    serde_json::to_string_pretty(&state.user_manager.get_all_registered()).map_err(|err| { internal_and_log(err) })
+}
+
+pub(super) async fn list_sessions(
+    Token(token): Token,
+    State(state): State<AppState>,
+) -> ApiResult<String> {
+    state.config.read().await.clone().verify_token(&token)?;
+
+    serde_json::to_string_pretty(&state.user_manager.get_all_authenticated()).map_err(|err| { internal_and_log(err) })
 }

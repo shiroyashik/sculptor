@@ -1,14 +1,8 @@
-## Release ☆ ～('▽^人)
-
-> [!CAUTION]
-> **Update your Config.toml according to the example in the repository!**
+## Bug fix
 
 What's added:
-- Ability to change authentication providers;
-- Display information about Sculptor in MOTD;
-- Checking updates for Sculptor (displayed in CLI at startup) and for Figura (reported in mod UI);
-- Saving log files in a separate directory;
-- User bans and Minecraft blacklist parser;
-- Implemented a special API for backend manipulation by third-party software.
+- Prohibit creation of two sessions on one user
+- Fixed avatar refreshing when deleting an avatar
+- Fixed session relevance check
 
-**Full Changelog**: https://github.com/shiroyashik/sculptor/compare/v0.2.3...v0.3.0
+**Full Changelog**: https://github.com/shiroyashik/sculptor/compare/v0.3.0...v0.3.1
