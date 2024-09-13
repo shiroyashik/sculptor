@@ -2,6 +2,7 @@
 /Assets-main
 /avatars
 /logs
+/assets
 output.log
 docker-compose.yml
 Config.toml

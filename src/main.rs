@@ -21,7 +21,7 @@ pub use api::errors::{ApiResult, ApiError};
 // API
 mod api;
 use api::{
-    figura::{ws, info as api_info, profile as api_profile, auth as api_auth},
+    figura::{ws, info as api_info, profile as api_profile, auth as api_auth, assets as api_assets},
     // v1::{},
 };
 
@@ -84,12 +84,12 @@ async fn main() -> Result<()> {
         .with(terminal_layer)
         .init();
 
-    std::panic::set_hook(Box::new(panic_hook));
-    // let prev_hook = std::panic::take_hook();
-    // std::panic::set_hook(Box::new(move |panic_info| {
-    //     panic_hook(panic_info);
-    //     prev_hook(panic_info);
-    // }));
+    // std::panic::set_hook(Box::new(panic_hook));
+    let prev_hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |panic_info| {
+        panic_hook(panic_info);
+        prev_hook(panic_info);
+    }));
 
     info!("The Sculptor v{}{}", SCULPTOR_VERSION, check_updates(REPOSITORY, &SCULPTOR_VERSION).await?);
     
@@ -141,6 +141,7 @@ async fn main() -> Result<()> {
 
     let api = Router::new()
         .nest("//auth", api_auth::router()) // => /api//auth ¯\_(ツ)_/¯
+        .nest("//assets", api_assets::router())
         .nest("/v1", api::v1::router())
         .route("/limits", get(api_info::limits))
         .route("/version", get(api_info::version))
