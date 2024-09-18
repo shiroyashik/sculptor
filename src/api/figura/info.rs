@@ -26,8 +26,8 @@ pub async fn version(State(state): State<AppState>) -> Json<FiguraVersions> {
     }
 }
 
-pub async fn motd(State(state): State<AppState>) -> String {
-    serde_json::to_string_pretty(&get_motd(state).await).unwrap()
+pub async fn motd(State(state): State<AppState>) -> Json<Vec<crate::utils::Motd>> {
+    Json(get_motd(state).await)
 }
 
 pub async fn limits(State(state): State<AppState>) -> Json<Value> {
