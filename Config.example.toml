@@ -15,6 +15,9 @@ listen = "0.0.0.0:6665"
 #     { name = "ElyBy", url = "http://minecraft.ely.by/session/hasJoined" },
 # ]
 
+# FIXME: in dev
+assetsUpdaterEnabled = true
+
 ## Message of The Day
 ## It will be displayed to every player in the Figura menu who is connected to your server
 [motd]

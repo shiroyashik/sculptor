@@ -1,3 +1,5 @@
+use std::env::var;
+
 use axum::{
     body::Bytes, extract::{Path, State}, Json
 };
@@ -12,7 +14,7 @@ use uuid::Uuid;
 use crate::{
     api::errors::internal_and_log,
     auth::Token, utils::{calculate_file_sha256, format_uuid},
-    ApiError, ApiResult, AppState
+    ApiError, ApiResult, AppState, AVATARS_ENV
 };
 use super::types::S2CMessage;
 
@@ -24,7 +26,7 @@ pub async fn user_info(
 
     let formatted_uuid = format_uuid(&uuid);
 
-    let avatar_file = format!("avatars/{}.moon", formatted_uuid);
+    let avatar_file = format!("{}/{}.moon", var(AVATARS_ENV).unwrap(), formatted_uuid);
 
     let userinfo = if let Some(info) = state.user_manager.get_by_uuid(&uuid) { info } else {
         return Err(ApiError::BadRequest) // NOTE: Not Found (404) shows badge
@@ -79,7 +81,7 @@ pub async fn user_info(
 pub async fn download_avatar(Path(uuid): Path<Uuid>) -> ApiResult<Vec<u8>> {
     let uuid = format_uuid(&uuid);
     tracing::info!("Requesting an avatar: {}", uuid);
-    let mut file = if let Ok(file) = fs::File::open(format!("avatars/{}.moon", uuid)).await {
+    let mut file = if let Ok(file) = fs::File::open(format!("{}/{}.moon", var(AVATARS_ENV).unwrap(), uuid)).await {
         file
     } else {
         return Err(ApiError::NotFound)
@@ -102,7 +104,7 @@ pub async fn upload_avatar(
             user_info.uuid,
             user_info.username
         );
-        let avatar_file = format!("avatars/{}.moon", user_info.uuid);
+        let avatar_file = format!("{}/{}.moon", var(AVATARS_ENV).unwrap(), user_info.uuid);
         let mut file = BufWriter::new(fs::File::create(&avatar_file).await.map_err(|err| internal_and_log(err))?);
         io::copy(&mut request_data.as_ref(), &mut file).await.map_err(|err| internal_and_log(err))?;
     }
@@ -123,11 +125,10 @@ pub async fn delete_avatar(Token(token): Token, State(state): State<AppState>) -
             user_info.uuid,
             user_info.username
         );
-        let avatar_file = format!("avatars/{}.moon", user_info.uuid);
+        let avatar_file = format!("{}/{}.moon", var(AVATARS_ENV).unwrap(), user_info.uuid);
         fs::remove_file(avatar_file).await.map_err(|err| internal_and_log(err))?;
         send_event(&state, &user_info.uuid).await;
     }
-    // let avatar_file = format!("avatars/{}.moon",user_info.uuid);
     Ok("ok".to_string())
 }
 

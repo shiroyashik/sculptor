@@ -1,9 +1,11 @@
+use std::env::var;
+
 use axum::{body::Bytes, extract::{Path, State}};
 use tokio::{fs, io::{self, BufWriter}};
 use tracing::warn;
 use uuid::Uuid;
 
-use crate::{api::figura::profile::send_event, auth::Token, ApiResult, AppState};
+use crate::{api::figura::profile::send_event, auth::Token, ApiResult, AppState, AVATARS_ENV};
 
 pub async fn upload_avatar(
     Path(uuid): Path<Uuid>,
@@ -20,7 +22,7 @@ pub async fn upload_avatar(
         uuid,
     );
 
-    let avatar_file = format!("avatars/{}.moon", &uuid);
+    let avatar_file = format!("{}/{}.moon", var(AVATARS_ENV).unwrap(), &uuid);
     let mut file = BufWriter::new(fs::File::create(&avatar_file).await.unwrap());
     io::copy(&mut request_data.as_ref(), &mut file).await.unwrap();
     send_event(&state, &uuid).await;
@@ -40,7 +42,7 @@ pub async fn delete_avatar(
         uuid,
     );
 
-    let avatar_file = format!("avatars/{}.moon", &uuid);
+    let avatar_file = format!("{}/{}.moon", var(AVATARS_ENV).unwrap(), &uuid);
     match fs::remove_file(avatar_file).await {
         Ok(_) => {},
         Err(_) => {

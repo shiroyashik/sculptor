@@ -11,6 +11,7 @@ use crate::auth::{default_authproviders, AuthProviders, Userinfo};
 pub struct Config {
     pub listen: String,
     pub token: Option<String>,
+    pub assets_updater_enabled: bool, // FIXME: IN DEV BRANCH ONLY
     pub motd: CMotd,
     #[serde(default = "default_authproviders")]
     pub auth_providers: AuthProviders,
@@ -78,7 +79,7 @@ impl Config {
         let mut data = String::new();
         file.read_to_string(&mut data).unwrap();
 
-        toml::from_str(&data).unwrap()
+        toml::from_str(&data).unwrap_or_else(|err| {tracing::error!("{err:#?}"); panic!("Panic occured! See log messages!")})
     }
 
     pub fn verify_token(&self, suspicious: &str) -> crate::ApiResult<()> {

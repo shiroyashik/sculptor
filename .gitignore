@@ -3,9 +3,11 @@
 /avatars
 /logs
 /assets
+/data
 output.log
 docker-compose.yml
 Config.toml
+config.toml
 .env
 perf.data*
 banned-players.json

@@ -5,10 +5,9 @@ use axum::{
 use dashmap::DashMap;
 use tracing_panic::panic_hook;
 use tracing_subscriber::{fmt::{self, time::ChronoLocal}, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
-use std::{path::PathBuf, sync::Arc};
+use std::{path::PathBuf, sync::Arc, env::{set_var, var}};
 use tokio::{fs, sync::{broadcast, mpsc, RwLock}, time::Instant};
 use tower_http::trace::TraceLayer;
-use tracing::info;
 use uuid::Uuid;
 
 // Consts
@@ -35,7 +34,7 @@ use state::Config;
 
 // Utils
 mod utils;
-use utils::{check_updates, get_log_file, update_advanced_users, update_bans_from_minecraft, FiguraVersions};
+use utils::{check_updates, download_assets, get_commit_sha, get_log_file, get_path_to_assets_hash, is_assets_outdated, remove_assets, update_advanced_users, update_bans_from_minecraft, write_sha_to_file, FiguraVersions};
 
 #[derive(Debug, Clone)]
 pub struct AppState {
@@ -49,19 +48,25 @@ pub struct AppState {
     broadcasts: Arc<DashMap<Uuid, broadcast::Sender<Vec<u8>>>>,
     /// Current configuration
     config: Arc<RwLock<state::Config>>,
-    /// Figura Versions
+    /// Caching Figura Versions
     figura_versions: Arc<RwLock<Option<FiguraVersions>>>,
+}
+
+fn apply_default_environment() {
+    if var(LOGGER_ENV).is_err()  { set_var(LOGGER_ENV, "info") };
+    if var(CONFIG_ENV).is_err()  { set_var(CONFIG_ENV, "Config.toml") };
+    if var(LOGS_ENV).is_err()    { set_var(LOGS_ENV,   "logs") };
+    if var(ASSETS_ENV).is_err()  { set_var(ASSETS_ENV, "data/assets") };
+    if var(AVATARS_ENV).is_err() { set_var(ASSETS_ENV, "data/avatars") };
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
     let _ = dotenvy::dotenv();
+    apply_default_environment();
     // "trace,axum=info,tower_http=info,tokio=info,tungstenite=info,tokio_tungstenite=info",
-    let logger_env = std::env::var(LOGGER_ENV).unwrap_or_else(|_| "info".into());
-    let config_file = std::env::var(CONFIG_ENV).unwrap_or_else(|_| "Config.toml".into());
-    let logs_folder = std::env::var(LOGS_ENV).unwrap_or_else(|_| "logs".into());
 
-    let file_appender = tracing_appender::rolling::never(&logs_folder, get_log_file(&logs_folder));
+    let file_appender = tracing_appender::rolling::never(&var(LOGS_ENV).unwrap(), get_log_file(&var(LOGS_ENV).unwrap()));
     let timer = ChronoLocal::new(String::from("%Y-%m-%dT%H:%M:%S%.3f%:z"));
 
     let file_layer = fmt::layer()
@@ -79,7 +84,7 @@ async fn main() -> Result<()> {
 
     // Combine the layers and set the global subscriber
     tracing_subscriber::registry()
-        .with(EnvFilter::from(logger_env))
+        .with(EnvFilter::from(var(LOGGER_ENV).unwrap()))
         .with(file_layer)
         .with(terminal_layer)
         .init();
@@ -91,19 +96,45 @@ async fn main() -> Result<()> {
         prev_hook(panic_info);
     }));
 
-    info!("The Sculptor v{}{}", SCULPTOR_VERSION, check_updates(REPOSITORY, &SCULPTOR_VERSION).await?);
+    tracing::info!("The Sculptor v{}{}", SCULPTOR_VERSION, check_updates(REPOSITORY, &SCULPTOR_VERSION).await?);
     
+    // Preparing for launch
     {
-        let path = PathBuf::from("avatars");
+        let path = PathBuf::from(var(AVATARS_ENV).unwrap());
         if !path.exists() {
-            fs::create_dir(path).await.expect("Can't create avatars folder!");
-            info!("Created avatars directory");
+            fs::create_dir_all(path).await.expect("Can't create avatars folder!");
+            tracing::info!("Created avatars directory");
         }
     }
 
     // Config
-    let config = Arc::new(RwLock::new(Config::parse(config_file.clone().into())));
+    let config = Arc::new(RwLock::new(Config::parse(var(CONFIG_ENV).unwrap().into())));
     let listen = config.read().await.listen.clone();
+
+    if config.read().await.assets_updater_enabled {
+        // Force update assets if folder or hash file doesn't exists.
+        if !(PathBuf::from(var(ASSETS_ENV).unwrap()).is_dir() && get_path_to_assets_hash().is_file()) {
+            tracing::debug!("Removing broken assets...");
+            remove_assets().await
+        }
+        match get_commit_sha(FIGURA_ASSETS_COMMIT_URL).await {
+            Ok(sha) => {
+                if is_assets_outdated(&sha).await.unwrap_or_else(|e| {tracing::error!("Can't check assets state due: {:?}", e); false}) {
+                    remove_assets().await;
+                    match tokio::task::spawn_blocking(|| { download_assets() }).await.unwrap() {
+                        Err(e) => tracing::error!("Assets outdated! Can't download new version due: {:?}", e),
+                        Ok(_) => {
+                            match write_sha_to_file(&sha).await {
+                                Ok(_) => tracing::info!("Assets successfully updated!"),
+                                Err(e) => tracing::error!("Assets successfully updated! Can't create assets hash file due: {:?}", e),
+                            }
+                        }
+                    };
+                } else { tracing::info!("Assets are up to date!") }
+            },
+            Err(e) => tracing::error!("Can't get assets last commit! Assets update check aborted due {:?}", e)
+        }
+    }
 
     // State
     let state = AppState {
@@ -122,11 +153,11 @@ async fn main() -> Result<()> {
     tokio::spawn(async move {
         loop {
             tokio::time::sleep(std::time::Duration::from_secs(10)).await;
-            let new_config = Config::parse(config_file.clone().into());
+            let new_config = Config::parse(var(CONFIG_ENV).unwrap().into());
             let mut config = config_update.write().await;
 
             if new_config != *config {
-                info!("Server configuration modification detected!");
+                tracing::info!("Server configuration modification detected!");
                 *config = new_config;
                 update_advanced_users(&config.advanced_users.clone(), &user_manager);
             }
@@ -161,11 +192,11 @@ async fn main() -> Result<()> {
         .route("/health", get(|| async { "ok" }));
 
     let listener = tokio::net::TcpListener::bind(listen).await?;
-    info!("Listening on {}", listener.local_addr()?);
+    tracing::info!("Listening on {}", listener.local_addr()?);
     axum::serve(listener, app)
         .with_graceful_shutdown(shutdown_signal())
         .await?;
-    info!("Serve stopped. Closing...");
+    tracing::info!("Serve stopped. Closing...");
     Ok(())
 }
 
@@ -187,11 +218,11 @@ async fn shutdown_signal() {
     tokio::select! {
         () = ctrl_c => {
             println!();
-            info!("Ctrl+C signal received");
+            tracing::info!("Ctrl+C signal received");
         },
         () = terminate => {
             println!();
-            info!("Terminate signal received");
+            tracing::info!("Terminate signal received");
         },
     }
 }
