@@ -6,7 +6,7 @@ mod users;
 mod types;
 mod avatars;
 
-pub fn router() -> Router<AppState> {
+pub fn router(limit: usize) -> Router<AppState> {
     Router::new()
         .route("/verify", get(http2ws::verify))
         .route("/raw", post(http2ws::raw))
@@ -16,6 +16,6 @@ pub fn router() -> Router<AppState> {
         .route("/user/create", post(users::create_user))
         .route("/user/:uuid/ban", post(users::ban))
         .route("/user/:uuid/unban", post(users::unban))
-        .route("/avatar/:uuid", put(avatars::upload_avatar).layer(DefaultBodyLimit::disable()))
+        .route("/avatar/:uuid", put(avatars::upload_avatar).layer(DefaultBodyLimit::max(limit)))
         .route("/avatar/:uuid", delete(avatars::delete_avatar))
 }

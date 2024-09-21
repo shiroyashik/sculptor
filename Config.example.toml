@@ -63,8 +63,9 @@ customText = """
 ]
 """
 
+### Full update of these parameters occurs only after restarting the Sculptor!!!
 [limitations]
-maxAvatarSize = 100000 # 100 KB
+maxAvatarSize = 100 # KB
 maxAvatars = 10
 
 [advancedUsers.66004548-4de5-49de-bade-9c3933d8eb97]

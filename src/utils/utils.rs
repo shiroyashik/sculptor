@@ -144,3 +144,7 @@ pub fn get_log_file(folder: &str) -> String {
         index += 1;
     }
 }
+
+pub fn get_limit_as_bytes(limit: usize) -> usize {
+    1024 + limit * 1024 // Adding additional 1 KB just for fun :)
+}

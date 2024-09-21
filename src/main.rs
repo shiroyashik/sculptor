@@ -35,7 +35,12 @@ use state::Config;
 
 // Utils
 mod utils;
-use utils::{check_updates, download_assets, get_commit_sha, get_log_file, get_path_to_assets_hash, is_assets_outdated, remove_assets, update_advanced_users, update_bans_from_minecraft, write_sha_to_file, FiguraVersions};
+use utils::{
+    check_updates, download_assets, get_commit_sha,
+    get_limit_as_bytes, get_log_file, get_path_to_assets_hash,
+    is_assets_outdated, remove_assets, update_advanced_users,
+    update_bans_from_minecraft, write_sha_to_file, FiguraVersions
+};
 
 #[derive(Debug, Clone)]
 pub struct AppState {
@@ -120,6 +125,7 @@ async fn main() -> Result<()> {
     // Config
     let config = Arc::new(RwLock::new(Config::parse(CONFIG_VAR.clone().into())));
     let listen = config.read().await.listen.clone();
+    let limit = get_limit_as_bytes(config.read().await.limitations.max_avatar_size.clone() as usize);
 
     if config.read().await.assets_updater_enabled {
         // Force update assets if folder or hash file doesn't exists.
@@ -183,14 +189,14 @@ async fn main() -> Result<()> {
     let api = Router::new()
         .nest("//auth", api_auth::router()) // => /api//auth ¯\_(ツ)_/¯
         .nest("//assets", api_assets::router())
-        .nest("/v1", api::v1::router())
+        .nest("/v1", api::v1::router(limit))
         .route("/limits", get(api_info::limits))
         .route("/version", get(api_info::version))
         .route("/motd", get(api_info::motd))
         .route("/equip", post(api_profile::equip_avatar))
         .route("/:uuid", get(api_profile::user_info))
         .route("/:uuid/avatar", get(api_profile::download_avatar))
-        .route("/avatar", put(api_profile::upload_avatar).layer(DefaultBodyLimit::disable()))
+        .route("/avatar", put(api_profile::upload_avatar).layer(DefaultBodyLimit::max(limit)))
         .route("/avatar", delete(api_profile::delete_avatar));
 
     let app = Router::new()
