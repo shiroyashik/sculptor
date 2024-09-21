@@ -5,10 +5,11 @@ use axum::{
 use dashmap::DashMap;
 use tracing_panic::panic_hook;
 use tracing_subscriber::{fmt::{self, time::ChronoLocal}, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
-use std::{path::PathBuf, sync::Arc, env::{set_var, var}};
+use std::{path::PathBuf, sync::Arc, env::var};
 use tokio::{fs, sync::{broadcast, mpsc, RwLock}, time::Instant};
 use tower_http::trace::TraceLayer;
 use uuid::Uuid;
+use lazy_static::lazy_static;
 
 // Consts
 mod consts;
@@ -52,21 +53,30 @@ pub struct AppState {
     figura_versions: Arc<RwLock<Option<FiguraVersions>>>,
 }
 
-fn apply_default_environment() {
-    if var(LOGGER_ENV).is_err()  { set_var(LOGGER_ENV, "info") };
-    if var(CONFIG_ENV).is_err()  { set_var(CONFIG_ENV, "Config.toml") };
-    if var(LOGS_ENV).is_err()    { set_var(LOGS_ENV,   "logs") };
-    if var(ASSETS_ENV).is_err()  { set_var(ASSETS_ENV, "data/assets") };
-    if var(AVATARS_ENV).is_err() { set_var(ASSETS_ENV, "data/avatars") };
+lazy_static! {
+    pub static ref LOGGER_VAR: String = {
+        var(LOGGER_ENV).unwrap_or(String::from("info"))
+    };
+    pub static ref CONFIG_VAR: String = {
+        var(CONFIG_ENV).unwrap_or(String::from("Config.toml"))
+    };
+    pub static ref LOGS_VAR: String = {
+        var(LOGS_ENV).unwrap_or(String::from("logs"))
+    };
+    pub static ref ASSETS_VAR: String = {
+        var(ASSETS_ENV).unwrap_or(String::from("data/assets"))
+    };
+    pub static ref AVATARS_VAR: String = {
+        var(AVATARS_ENV).unwrap_or(String::from("data/avatars"))
+    };
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
     let _ = dotenvy::dotenv();
-    apply_default_environment();
     // "trace,axum=info,tower_http=info,tokio=info,tungstenite=info,tokio_tungstenite=info",
 
-    let file_appender = tracing_appender::rolling::never(&var(LOGS_ENV).unwrap(), get_log_file(&var(LOGS_ENV).unwrap()));
+    let file_appender = tracing_appender::rolling::never(&*LOGS_VAR, get_log_file(&*LOGS_VAR));
     let timer = ChronoLocal::new(String::from("%Y-%m-%dT%H:%M:%S%.3f%:z"));
 
     let file_layer = fmt::layer()
@@ -84,7 +94,7 @@ async fn main() -> Result<()> {
 
     // Combine the layers and set the global subscriber
     tracing_subscriber::registry()
-        .with(EnvFilter::from(var(LOGGER_ENV).unwrap()))
+        .with(EnvFilter::from(&*LOGGER_VAR))
         .with(file_layer)
         .with(terminal_layer)
         .init();
@@ -100,7 +110,7 @@ async fn main() -> Result<()> {
     
     // Preparing for launch
     {
-        let path = PathBuf::from(var(AVATARS_ENV).unwrap());
+        let path = PathBuf::from(&*AVATARS_VAR);
         if !path.exists() {
             fs::create_dir_all(path).await.expect("Can't create avatars folder!");
             tracing::info!("Created avatars directory");
@@ -108,12 +118,12 @@ async fn main() -> Result<()> {
     }
 
     // Config
-    let config = Arc::new(RwLock::new(Config::parse(var(CONFIG_ENV).unwrap().into())));
+    let config = Arc::new(RwLock::new(Config::parse(CONFIG_VAR.clone().into())));
     let listen = config.read().await.listen.clone();
 
     if config.read().await.assets_updater_enabled {
         // Force update assets if folder or hash file doesn't exists.
-        if !(PathBuf::from(var(ASSETS_ENV).unwrap()).is_dir() && get_path_to_assets_hash().is_file()) {
+        if !(PathBuf::from(&*ASSETS_VAR).is_dir() && get_path_to_assets_hash().is_file()) {
             tracing::debug!("Removing broken assets...");
             remove_assets().await
         }
@@ -153,7 +163,7 @@ async fn main() -> Result<()> {
     tokio::spawn(async move {
         loop {
             tokio::time::sleep(std::time::Duration::from_secs(10)).await;
-            let new_config = Config::parse(var(CONFIG_ENV).unwrap().into());
+            let new_config = Config::parse(CONFIG_VAR.clone().into());
             let mut config = config_update.write().await;
 
             if new_config != *config {

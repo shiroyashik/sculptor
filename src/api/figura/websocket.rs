@@ -76,6 +76,8 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
                 // Next is the code for processing msg
                 let msg_vec = msg.clone().into_data();
                 let msg_array = msg_vec.as_slice();
+                
+                if msg_array.len() == 0 { tracing::debug!("[WebSocket{}] Deprecated len 0 msg", owner.name()); continue; };
 
                 let newmsg = match C2SMessage::try_from(msg_array) {
                     Ok(data) => data,

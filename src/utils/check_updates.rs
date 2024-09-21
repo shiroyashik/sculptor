@@ -1,4 +1,4 @@
-use std::{env::{self, var}, path::{self, PathBuf}};
+use std::path::{self, PathBuf};
 
 use anyhow::anyhow;
 use reqwest::Client;
@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use tokio::{fs::{self, File}, io::{AsyncReadExt as _, AsyncWriteExt as _}};
 use tracing::error;
 
-use crate::{ASSETS_ENV, FIGURA_ASSETS_ZIP_URL, FIGURA_RELEASES_URL, TIMEOUT, USER_AGENT};
+use crate::{ASSETS_VAR, FIGURA_ASSETS_ZIP_URL, FIGURA_RELEASES_URL, TIMEOUT, USER_AGENT};
 
 #[derive(Deserialize, Debug)]
 struct Tag {
@@ -116,7 +116,7 @@ struct Commit {
 }
 
 pub fn get_path_to_assets_hash() -> PathBuf {
-    path::PathBuf::from(&env::var(ASSETS_ENV).unwrap()).join("..").join("assets_last_commit")
+    path::PathBuf::from(&*ASSETS_VAR).join("..").join("assets_last_commit")
 }
 
 pub async fn get_commit_sha(url: &str) -> anyhow::Result<String> {
@@ -157,19 +157,22 @@ pub async fn is_assets_outdated(last_sha: &str) -> anyhow::Result<bool> {
 pub fn download_assets() -> anyhow::Result<()> {
     use std::{fs::{File, self}, io::Write as _};
 
-    let assets_folder = var(ASSETS_ENV).unwrap();
+    let assets_folder = ASSETS_VAR.clone();
 
     // Path to save the downloaded ZIP file
-    let zip_file_path = path::PathBuf::from(&assets_folder).join("..").join("assets.zip");
+    let mut zip_file_path = path::PathBuf::from(&*ASSETS_VAR);
+    zip_file_path.pop();
+    let zip_file_path = zip_file_path.join("assets.zip");
 
     // Download the ZIP file
-
-    let response = reqwest::blocking::get(FIGURA_ASSETS_ZIP_URL)?;
+    let client = reqwest::blocking::Client::builder().timeout(TIMEOUT).user_agent(USER_AGENT).build().unwrap();
+    let response: reqwest::blocking::Response = client.get(FIGURA_ASSETS_ZIP_URL).send()?;
     let bytes = response.bytes()?;
 
     // Save the downloaded ZIP file to disk
     let mut file = File::create(&zip_file_path)?;
     file.write_all(&bytes)?;
+    file.flush()?;
 
     // Open the downloaded ZIP file
     let file = File::open(&zip_file_path)?;
@@ -237,6 +240,6 @@ pub async fn write_sha_to_file(sha: &str) -> anyhow::Result<()> {
 }
 
 pub async fn remove_assets() {
-    fs::remove_dir_all(&var(ASSETS_ENV).unwrap()).await.unwrap_or_else(|err| tracing::debug!("Assets dir remove failed due {err:?}"));
+    fs::remove_dir_all(&*ASSETS_VAR).await.unwrap_or_else(|err| tracing::debug!("Assets dir remove failed due {err:?}"));
     fs::remove_file(get_path_to_assets_hash()).await.unwrap_or_else(|err| tracing::debug!("Assets hash file remove failed due {err:?}"));
 }

@@ -7,7 +7,7 @@ use serde_json::Value;
 use tokio::{fs, io::AsyncReadExt as _};
 use walkdir::WalkDir;
 
-use crate::{api::errors::internal_and_log, ApiError, ApiResult, AppState, ASSETS_ENV};
+use crate::{api::errors::internal_and_log, ApiError, ApiResult, AppState, ASSETS_VAR};
 
 pub fn router() -> Router<AppState> {
     Router::new()
@@ -17,7 +17,7 @@ pub fn router() -> Router<AppState> {
 }
 
 async fn versions() -> ApiResult<Json<Value>> {
-    let dir_path = PathBuf::from(&std::env::var(ASSETS_ENV).unwrap());
+    let dir_path = PathBuf::from(&*ASSETS_VAR);
     
     let mut directories = Vec::new();
     
@@ -43,7 +43,7 @@ async fn hashes(Path(version): Path<String>) -> ApiResult<Json<IndexMap<String, 
 }
 
 async fn download(Path((version, path)): Path<(String, String)>) -> ApiResult<Vec<u8>> {
-    let mut file = if let Ok(file) = fs::File::open(format!("{}/{version}/{path}", std::env::var(ASSETS_ENV).unwrap())).await {
+    let mut file = if let Ok(file) = fs::File::open(format!("{}/{version}/{path}", *ASSETS_VAR)).await {
         file
     } else {
         return Err(ApiError::NotFound)
@@ -57,7 +57,7 @@ async fn download(Path((version, path)): Path<(String, String)>) -> ApiResult<Ve
 
 async fn index_assets(version: &str) -> anyhow::Result<IndexMap<String, Value>> {
     let mut map = IndexMap::new();
-    let version_path = PathBuf::from(std::env::var(ASSETS_ENV).unwrap()).join(version);
+    let version_path = PathBuf::from(&*ASSETS_VAR).join(version);
 
     for entry in WalkDir::new(version_path.clone()).into_iter().filter_map(|e| e.ok()) {
         let data = match fs::read(entry.path()).await {

@@ -14,13 +14,17 @@ services:
     restart: unless-stopped
     volumes:
       - ./Config.toml:/app/Config.toml:ro
-      - ./avatars:/app/avatars
+      - ./data:/app/data
       - ./logs:/app/logs
       # You can specify the path to the server folder
       # for Sculptor to use the ban list from it
       # - ./minecraft-server:/app/mc
     environment:
       - RUST_LOG=info
+      # Set your timezone. https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
+      - TZ=Europe/Moscow
+    # ports:
+    #   - 6665
     ## Recommended for use with reverse proxy.
     # networks:
     #   - traefik
