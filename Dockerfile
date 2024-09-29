@@ -34,4 +34,4 @@ VOLUME [ "/app/data" ]
 VOLUME [ "/app/logs" ]
 EXPOSE 6665/tcp
 
-CMD [ "./sculptor" ]
+ENTRYPOINT [ "./sculptor" ]

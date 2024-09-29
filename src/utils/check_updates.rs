@@ -1,11 +1,10 @@
 use std::path::{self, PathBuf};
 
-use anyhow::anyhow;
+use anyhow::bail;
 use reqwest::Client;
 use semver::Version;
 use serde::{Deserialize, Serialize};
 use tokio::{fs::{self, File}, io::{AsyncReadExt as _, AsyncWriteExt as _}};
-use tracing::error;
 
 use crate::{ASSETS_VAR, FIGURA_ASSETS_ZIP_URL, FIGURA_RELEASES_URL, TIMEOUT, USER_AGENT};
 
@@ -14,7 +13,7 @@ struct Tag {
     name: String
 }
 
-async fn get_latest_version(repo: &str, current_version: Version) -> anyhow::Result<Option<String>> {
+pub async fn get_latest_version(repo: &str) -> anyhow::Result<Version> {
     let url = format!("https://api.github.com/repos/{repo}/tags");
     let client = Client::builder().timeout(TIMEOUT).user_agent(USER_AGENT).build().unwrap();
     let response = client.get(&url).send().await?;
@@ -31,32 +30,12 @@ async fn get_latest_version(repo: &str, current_version: Version) -> anyhow::Res
             })
             .max();
         if let Some(latest_version) = latest_tag {
-            if latest_version > current_version {
-                Ok(Some(format!("Available new v{latest_version}")))
-            } else {
-                Ok(Some("Up to date".to_string()))
-            }
+            Ok(latest_version)
         } else {
-            Err(anyhow!("Can't find version tags!"))
+            bail!("Can't find version tags!")
         }
     } else {
-        Err(anyhow!("Response status code: {}", response.status().as_u16()))
-    }
-}
-
-pub async fn check_updates(repo: &str, current_version: &str) -> anyhow::Result<String> {
-    let current_version = semver::Version::parse(&current_version)?;
-
-    match get_latest_version(repo, current_version).await {
-        Ok(d) => if let Some(text) = d {
-            Ok(format!(" - {text}!"))
-        } else {
-            Ok(String::new())
-        },
-        Err(e) => {
-            error!("Can't fetch updates: {e:?}");
-            Ok(String::new())
-        },
+        bail!("Response status code: {}", response.status().as_u16())
     }
 }
 
@@ -79,7 +58,7 @@ pub async fn get_figura_versions() -> anyhow::Result<FiguraVersions> {
         let multiple_releases: Vec<Release> = response.json().await?;
         for release in multiple_releases {
             let tag_ver = if let Ok(res) = Version::parse(&release.tag_name) { res } else {
-                error!("Incorrect tag name! {release:?}");
+                tracing::error!("Incorrect tag name! {release:?}");
                 continue;
             };
             if release.prerelease {
@@ -98,7 +77,7 @@ pub async fn get_figura_versions() -> anyhow::Result<FiguraVersions> {
         // Stop
         Ok(FiguraVersions { release: release_ver.to_string(), prerelease: prerelease_ver.to_string() })
     } else {
-        Err(anyhow!("Response status code: {}", response.status().as_u16()))
+        bail!("Response status code: {}", response.status().as_u16())
     }
 }
 

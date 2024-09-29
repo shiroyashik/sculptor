@@ -5,6 +5,8 @@ version = "0.4.0-dev"
 edition = "2021"
 publish = false
 
+build = "build.rs"
+
 [dependencies]
 # Logging
 tracing-subscriber = { version = "0.3.18", features = ["env-filter", "chrono"] }
@@ -14,7 +16,7 @@ tracing = "0.1.40"
 
 # Errors handelers
 anyhow = "1.0.83"
-thiserror = "1.0.63"
+thiserror = "1.0.64"
 chrono = { version = "0.4.38", features = ["now", "serde"] }
 serde = { version = "1.0.201", features = ["derive"] }
 serde_json = "1.0.117"
@@ -35,8 +37,8 @@ ring = "0.17.8"
 rand = "0.8.5"
 
 # Web framework
-axum = { version = "0.7.6", features = ["ws", "macros", "http2"] }
-tower-http = { version = "0.6.0", features = ["trace"] }
+axum = { version = "0.7.7", features = ["ws", "macros", "http2"] }
+tower-http = { version = "0.6.1", features = ["trace"] }
 tokio = { version = "1.37.0", features = ["full"] }
 indexmap = { version = "2.5.0", features = ["serde"] }
 zip = "2.2.0"

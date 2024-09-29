@@ -1,6 +1,6 @@
 # The Sculptor
 
-[![Rust](https://github.com/shiroyashik/sculptor/actions/workflows/rust.yml/badge.svg?branch=master)](https://github.com/shiroyashik/sculptor/actions/workflows/rust.yml)
+[![Push Dev](https://github.com/shiroyashik/sculptor/actions/workflows/dev-release.yml/badge.svg?branch=dev)](https://github.com/shiroyashik/sculptor/actions/workflows/dev-release.yml)
 
 Unofficial backend V2 for the Minecraft mod [Figura](https://github.com/FiguraMC/Figura).
 

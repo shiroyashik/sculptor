@@ -35,12 +35,7 @@ use state::Config;
 
 // Utils
 mod utils;
-use utils::{
-    check_updates, download_assets, get_commit_sha,
-    get_limit_as_bytes, get_log_file, get_path_to_assets_hash,
-    is_assets_outdated, remove_assets, update_advanced_users,
-    update_bans_from_minecraft, write_sha_to_file, FiguraVersions
-};
+use utils::*;
 
 #[derive(Debug, Clone)]
 pub struct AppState {
@@ -78,9 +73,10 @@ lazy_static! {
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    // 1. Set up env
     let _ = dotenvy::dotenv();
-    // "trace,axum=info,tower_http=info,tokio=info,tungstenite=info,tokio_tungstenite=info",
 
+    // 2. Set up logging
     let file_appender = tracing_appender::rolling::never(&*LOGS_VAR, get_log_file(&*LOGS_VAR));
     let timer = ChronoLocal::new(String::from("%Y-%m-%dT%H:%M:%S%.3f%:z"));
 
@@ -111,8 +107,34 @@ async fn main() -> Result<()> {
         prev_hook(panic_info);
     }));
 
-    tracing::info!("The Sculptor v{}{}", SCULPTOR_VERSION, check_updates(REPOSITORY, &SCULPTOR_VERSION).await?);
-    
+    // 3. Display info about current instance and check updates
+    tracing::info!("The Sculptor v{SCULPTOR_VERSION}+{} ({REPOSITORY})", &GIT_HASH[..7]);
+    // let _ = check_updates(REPOSITORY, SCULPTOR_VERSION).await; // Currently, there is no need to do anything with the result of the function
+
+    match get_latest_version(REPOSITORY).await {
+        Ok(latest_version) => {
+            if latest_version > semver::Version::parse(SCULPTOR_VERSION).expect("SCULPTOR_VERSION does not match SemVer!") {
+                tracing::info!("Available new v{latest_version}! Check https://github.com/{REPOSITORY}/releases");
+            } else {
+                tracing::info!("Sculptor are up to date!");
+            }
+        },
+        Err(e) => {
+            tracing::error!("Can't fetch Sculptor updates due: {e:?}");
+        },
+    }
+
+    // 4. Starting an app() that starts to serve. If app() returns true, the sculptor will be restarted. for future
+    loop {
+        if !app().await? {
+            break;
+        }
+    }
+
+    Ok(())
+}
+
+async fn app() -> Result<bool> {
     // Preparing for launch
     {
         let path = PathBuf::from(&*AVATARS_VAR);
@@ -212,8 +234,8 @@ async fn main() -> Result<()> {
     axum::serve(listener, app)
         .with_graceful_shutdown(shutdown_signal())
         .await?;
-    tracing::info!("Serve stopped. Closing...");
-    Ok(())
+    tracing::info!("Serve stopped.");
+    Ok(false)
 }
 
 async fn shutdown_signal() {
