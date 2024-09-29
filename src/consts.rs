@@ -8,7 +8,6 @@ pub const AVATARS_ENV: &'static str = "AVATARS_FOLDER";
 // Instance info
 pub const SCULPTOR_VERSION: &'static str = env!("CARGO_PKG_VERSION");
 pub const REPOSITORY: &'static str = "shiroyashik/sculptor";
-pub const GIT_HASH: &'static str = env!("GIT_HASH", "Can't run git or build.rs failing!");
 
 // reqwest parameters
 pub const USER_AGENT: &'static str = "reqwest";

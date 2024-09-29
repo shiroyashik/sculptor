@@ -108,7 +108,7 @@ async fn main() -> Result<()> {
     }));
 
     // 3. Display info about current instance and check updates
-    tracing::info!("The Sculptor v{SCULPTOR_VERSION}+{} ({REPOSITORY})", &GIT_HASH[..7]);
+    tracing::info!("The Sculptor v{SCULPTOR_VERSION} ({REPOSITORY})");
     // let _ = check_updates(REPOSITORY, SCULPTOR_VERSION).await; // Currently, there is no need to do anything with the result of the function
 
     match get_latest_version(REPOSITORY).await {
