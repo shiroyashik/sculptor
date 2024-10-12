@@ -38,18 +38,18 @@ jobs:
         run: CROSS_NO_WARNINGS=0 cross build --target ${{ matrix.target }} --release
       
       # Create necessary files and directories
-      - name: Create necessary files and directories
+      - name: Create necessary files
         run: |
-          mkdir -p target/output/avatars
           cp Config.example.toml target/output/Config.toml
 
-      # Compress the output
+      # Compress the output | Windows
       - name: Compress | windows
         if: matrix.target == 'x86_64-pc-windows-gnu'
         run: |
           cp target/${{ matrix.target }}/release/sculptor.exe target/output
           (cd target/output; zip "../../sculptor_${{ matrix.output_name }}" ./*)
-      # Compress the output
+
+      # Compress the output | Linux
       - name: Compress | linux
         if: matrix.target != 'x86_64-pc-windows-gnu'
         run: |

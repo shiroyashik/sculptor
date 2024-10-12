@@ -15,7 +15,11 @@ listen = "0.0.0.0:6665"
 #     { name = "ElyBy", url = "http://minecraft.ely.by/session/hasJoined" },
 # ]
 
-# FIXME: in dev
+## Enabling Asset Updater.
+## If false, Sculptor will still respond to assets. Sculptor will handle any installed assets.
+## (The path must be ./data/assets unless overridden!)
+## This allows you to modify or create your own assets from scratch. X>
+## Default value = false
 assetsUpdaterEnabled = true
 
 ## Message of The Day
@@ -63,10 +67,11 @@ customText = """
 ]
 """
 
-### Full update of these parameters occurs only after restarting the Sculptor!!!
+## Full update of these parameters occurs only after restarting the Sculptor!!!
 [limitations]
 maxAvatarSize = 100 # KB
-maxAvatars = 10
+maxAvatars = 10 # It doesn't look like Figura has any actions implemented with this?
+# P.S. And it doesn't look like the current API allows anything like that... Unless you store them directly in one file...
 
 [advancedUsers.66004548-4de5-49de-bade-9c3933d8eb97]
 username = "Shiroyashik"
