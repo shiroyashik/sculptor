@@ -7,40 +7,40 @@ publish = false
 
 [dependencies]
 # Logging
-tracing-subscriber = { version = "0.3.18", features = ["env-filter", "chrono"] }
-tracing-appender = "0.2.3"
-tracing-panic = "0.1.2"
-tracing = "0.1.40"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "chrono"] }
+tracing-appender = "0.2"
+tracing-panic = "0.1"
+tracing = "0.1"
 
 # Errors handelers
-anyhow = "1.0.83"
-thiserror = "1.0.64"
-chrono = { version = "0.4.38", features = ["now", "serde"] }
-serde = { version = "1.0.201", features = ["derive"] }
-serde_json = "1.0.117"
-toml = "0.8.19"
+anyhow = "1.0"
+thiserror = "1.0"
+chrono = { version = "0.4", features = ["now", "serde"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+toml = "0.8"
 
 # Other
-dashmap = { version = "6.0.1", features = ["serde"] }
-hex = "0.4.3"
-uuid = { version = "1.8.0", features = ["serde"] }
-base64 = "0.22.1"
-reqwest = { version = "0.12.7", features = ["blocking", "json"] }
-dotenvy = "0.15.7"
-semver = "1.0.23"
-walkdir = "2.5.0"
+dashmap = { version = "6.0", features = ["serde"] }
+hex = "0.4"
+uuid = { version = "1.11", features = ["serde"] }
+base64 = "0.22"
+reqwest = { version = "0.12", features = ["blocking", "json"] }
+dotenvy = "0.15"
+semver = "1.0"
+walkdir = "2.5"
 
 # Crypto
-ring = "0.17.8"
-rand = "0.8.5"
+ring = "0.17"
+rand = "0.8"
 
 # Web framework
-axum = { version = "0.7.7", features = ["ws", "macros", "http2"] }
-tower-http = { version = "0.6.1", features = ["trace"] }
-tokio = { version = "1.37.0", features = ["full"] }
-indexmap = { version = "2.5.0", features = ["serde"] }
-zip = "2.2.0"
-lazy_static = "1.5.0"
+axum = { version = "0.7", features = ["ws", "macros", "http2"] }
+tower-http = { version = "0.6", features = ["trace"] }
+tokio = { version = "1.37", features = ["full"] }
+indexmap = { version = "2.6", features = ["serde"] }
+zip = "2.2"
+lazy_static = "1.5"
 
 [dev-dependencies]
 cross = "0.2.5"

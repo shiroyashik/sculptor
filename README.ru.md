@@ -3,12 +3,13 @@
 
 # The Sculptor
 [![Push Dev](https://github.com/shiroyashik/sculptor/actions/workflows/dev-release.yml/badge.svg?branch=dev)](https://github.com/shiroyashik/sculptor/actions/workflows/dev-release.yml)
+![maintenance-status](https://img.shields.io/badge/maintenance-actively--developed-brightgreen.svg)
 
 Неофициальный бэкенд для Minecraft мода [Figura](https://github.com/FiguraMC/Figura).
 
 Это полноценная замена официальной версии. Реализован весь функционал который вы можете использовать во время игры.
 
-А также отличительной особенностью является возможность игры с сторонними провайдерерами аутентификации (таких как [Ely.By](https://ely.by/))
+А также отличительной особенностью является возможность игры с сторонними провайдерерами аутентификации (такими как [Ely.By](https://ely.by/))
 
 ## Публичный сервер
 
@@ -18,13 +19,13 @@
 
 Вы можете использовать его если запуск собственного сервера затруднителен для вас.
 
-Для подключения достаточно сменить **Сервер IP** в настройках Figura на адрес ниже:
+Для подключения достаточно сменить **IP сервера Figura** в настройках Figura на адрес ниже:
 
 > figura.shsr.ru
 
-На сервере включена аутентификация через: Mojang и [Ely.By](https://ely.by/)
+На сервере включена аутентификация через: Mojang(Microsoft) и [Ely.By](https://ely.by/)
 
-По неконтролируемым мною причинам, сервер не доступен в некоторых странах
+По неконтролируемым мною причинам, сервер не доступен в некоторых странах.
 
 ## Запуск
 
@@ -71,15 +72,20 @@ cargo run --release
 ```
 
 ## Вклад в развитие
+![Спроси меня о чём угодно!](https://img.shields.io/badge/Ask%20me-anything-1abc9c.svg)
+в
+[![Telegram](https://badgen.net/static/icon/telegram?icon=telegram&color=cyan&label)](https://t.me/shiroyashik)
+или
+![Discord](https://badgen.net/badge/icon/discord?icon=discord&label)
 
 Если у вас есть идем, нашли баг или хотите предложить улучшения
 создавайте [issue](https://github.com/shiroyashik/sculptor/issues)
-или свяжитесь со мной напрямую через Discord/Telegram (@shiroyashik).
+или свяжитесь со мной напрямую через Discord/Telegram (**@shiroyashik**).
 
 Если вы Rust разработчик, буду рад вашим Pull Request'ам:
 
 1. Форкните репу
-2. Создайте новую репу для вашего гения
+2. Создайте новую ветку
 3. Создайте PR!
 
 Буду рад любой вашей помощи! ❤

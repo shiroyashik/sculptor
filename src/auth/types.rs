@@ -51,11 +51,7 @@ impl Default for AuthProvider {
 
 impl AuthProvider {
     pub fn is_empty(&self) -> bool {
-        if self.name == "Unknown".to_string() {
-            true
-        } else {
-            false
-        }
+        self.name == "Unknown"
     }
 }
 

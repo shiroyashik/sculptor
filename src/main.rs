@@ -1,3 +1,4 @@
+#![allow(clippy::module_inception)]
 use anyhow::Result;
 use axum::{
     extract::DefaultBodyLimit, routing::{delete, get, post, put}, Router
@@ -6,9 +7,8 @@ use dashmap::DashMap;
 use tracing_panic::panic_hook;
 use tracing_subscriber::{fmt::{self, time::ChronoLocal}, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 use std::{path::PathBuf, sync::Arc, env::var};
-use tokio::{fs, sync::{broadcast, mpsc, RwLock}, time::Instant};
+use tokio::{fs, sync::RwLock, time::Instant};
 use tower_http::trace::TraceLayer;
-use uuid::Uuid;
 use lazy_static::lazy_static;
 
 // Consts
@@ -31,27 +31,11 @@ use auth::{UManager, check_auth};
 
 // Config
 mod state;
-use state::Config;
+use state::{Config, AppState};
 
 // Utils
 mod utils;
 use utils::*;
-
-#[derive(Debug, Clone)]
-pub struct AppState {
-    /// Uptime
-    uptime: Instant,
-    /// User manager
-    user_manager: Arc<UManager>,
-    /// Send into WebSocket
-    session: Arc<DashMap<Uuid, mpsc::Sender<Vec<u8>>>>,
-    /// Ping broadcasts for WebSocket connections
-    broadcasts: Arc<DashMap<Uuid, broadcast::Sender<Vec<u8>>>>,
-    /// Current configuration
-    config: Arc<RwLock<state::Config>>,
-    /// Caching Figura Versions
-    figura_versions: Arc<RwLock<Option<FiguraVersions>>>,
-}
 
 lazy_static! {
     pub static ref LOGGER_VAR: String = {
@@ -77,7 +61,7 @@ async fn main() -> Result<()> {
     let _ = dotenvy::dotenv();
 
     // 2. Set up logging
-    let file_appender = tracing_appender::rolling::never(&*LOGS_VAR, get_log_file(&*LOGS_VAR));
+    let file_appender = tracing_appender::rolling::never(&*LOGS_VAR, get_log_file(&LOGS_VAR));
     let timer = ChronoLocal::new(String::from("%Y-%m-%dT%H:%M:%S%.3f%:z"));
 
     let file_layer = fmt::layer()
@@ -147,7 +131,7 @@ async fn app() -> Result<bool> {
     // Config
     let config = Arc::new(RwLock::new(Config::parse(CONFIG_VAR.clone().into())));
     let listen = config.read().await.listen.clone();
-    let limit = get_limit_as_bytes(config.read().await.limitations.max_avatar_size.clone() as usize);
+    let limit = get_limit_as_bytes(config.read().await.limitations.max_avatar_size as usize);
 
     if config.read().await.assets_updater_enabled {
         // Force update assets if folder or hash file doesn't exists.
@@ -179,15 +163,17 @@ async fn app() -> Result<bool> {
         uptime: Instant::now(),
         user_manager: Arc::new(UManager::new()),
         session: Arc::new(DashMap::new()),
-        broadcasts: Arc::new(DashMap::new()),
+        subscribes: Arc::new(DashMap::new()),
         figura_versions: Arc::new(RwLock::new(None)),
         config,
     };
 
+    // FIXME: FIXME: FIXME: ПЕРЕДЕЛАЙ ЭТО! НЕМЕДЛЕННО! ЕБУЧИЙ ПОЗОР :<
     // Automatic update of configuration while the server is running
     let config_update = Arc::clone(&state.config);
-    let user_manager = Arc::clone(&state.user_manager);
-    update_advanced_users(&config_update.read().await.advanced_users.clone(), &user_manager);
+    let umanager = Arc::clone(&state.user_manager);
+    let session = Arc::clone(&state.session);
+    update_advanced_users(&config_update.read().await.advanced_users.clone(), &umanager, &session).await;
     tokio::spawn(async move {
         loop {
             tokio::time::sleep(std::time::Duration::from_secs(10)).await;
@@ -197,14 +183,15 @@ async fn app() -> Result<bool> {
             if new_config != *config {
                 tracing::info!("Server configuration modification detected!");
                 *config = new_config;
-                update_advanced_users(&config.advanced_users.clone(), &user_manager);
+                update_advanced_users(&config.advanced_users.clone(), &umanager, &session).await;
             }
         }
     });
     if state.config.read().await.mc_folder.exists() {
         tokio::spawn(update_bans_from_minecraft(
             state.config.read().await.mc_folder.clone(),
-            Arc::clone(&state.user_manager)
+            Arc::clone(&state.user_manager),
+            Arc::clone(&state.session)
         ));
     }
 

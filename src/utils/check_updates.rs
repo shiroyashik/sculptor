@@ -65,10 +65,8 @@ pub async fn get_figura_versions() -> anyhow::Result<FiguraVersions> {
                 if tag_ver > prerelease_ver {
                     prerelease_ver = tag_ver
                 }
-            } else {
-                if tag_ver > release_ver {
+            } else if tag_ver > release_ver {
                     release_ver = tag_ver
-                }
             }
         }
         if release_ver > prerelease_ver {
@@ -115,13 +113,11 @@ pub async fn is_assets_outdated(last_sha: &str) -> anyhow::Result<bool> {
             if contents.lines().count() != 1 {
                 // Lines count in file abnormal
                 Ok(true)
+            } else if contents == last_sha {
+                Ok(false)
             } else {
-                if contents == last_sha {
-                    Ok(false)
-                } else {
-                    // SHA in file mismatches with provided SHA
-                    Ok(true)
-                }
+                // SHA in file mismatches with provided SHA
+                Ok(true)
             }
         },
         Err(err) => if err.kind() == tokio::io::ErrorKind::NotFound {

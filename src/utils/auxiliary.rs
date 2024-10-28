@@ -30,14 +30,18 @@ pub fn _generate_hex_string(length: usize) -> String {
     hex::encode(random_bytes)
 }
 
-pub fn update_advanced_users(value: &std::collections::HashMap<Uuid, AdvancedUsers>, umanager: &UManager) {
+pub async fn update_advanced_users(
+    value: &std::collections::HashMap<Uuid, AdvancedUsers>,
+    umanager: &UManager,
+    sessions: &dashmap::DashMap<Uuid, tokio::sync::mpsc::Sender<crate::api::figura::SessionMessage>>
+) {
     let users: Vec<(Uuid, Userinfo)> = value
         .iter()
         .map( |(uuid, userdata)| {
             (
-            uuid.clone(),
+            *uuid,
             Userinfo { 
-                uuid: uuid.clone(),
+                uuid: *uuid,
                 username: userdata.username.clone(),
                 banned: userdata.banned,
                 ..Default::default()
@@ -48,12 +52,17 @@ pub fn update_advanced_users(value: &std::collections::HashMap<Uuid, AdvancedUse
     for (uuid, userinfo) in users {
         umanager.insert_user(uuid, userinfo.clone());
         if userinfo.banned {
-            umanager.ban(&userinfo)
+            umanager.ban(&userinfo);
+            if let Some(tx) = sessions.get(&uuid) {let _ = tx.send(crate::api::figura::SessionMessage::Banned).await;}
         }
     }
 }
 
-pub async fn update_bans_from_minecraft(folder: PathBuf, umanager: std::sync::Arc<UManager>) {
+pub async fn update_bans_from_minecraft(
+    folder: PathBuf,
+    umanager: std::sync::Arc<UManager>,
+    sessions: std::sync::Arc<dashmap::DashMap<Uuid, tokio::sync::mpsc::Sender<crate::api::figura::SessionMessage>>>
+) {
     let path = folder.join("banned-players.json");
     let mut file = tokio::fs::File::open(path.clone()).await.expect("Access denied or banned-players.json doesn't exists!");
     let mut data = String::new();
@@ -70,6 +79,7 @@ pub async fn update_bans_from_minecraft(folder: PathBuf, umanager: std::sync::Ar
 
     for player in &old_bans {
         umanager.ban(&player.clone().into());
+        if let Some(tx) = sessions.get(&player.uuid) {let _ = tx.send(crate::api::figura::SessionMessage::Banned).await;}
     }
 
     // old_bans
@@ -97,6 +107,7 @@ pub async fn update_bans_from_minecraft(folder: PathBuf, umanager: std::sync::Ar
             if !ban.is_empty() {
                 for player in ban {
                     umanager.ban(&player.clone().into());
+                    if let Some(tx) = sessions.get(&player.uuid) {let _ = tx.send(crate::api::figura::SessionMessage::Banned).await;}
                 }
             } else { ban_names = String::from("-")};
             info!("List of changes:\n    Banned: {ban_names}\n    Unbanned: {unban_names}");

@@ -4,6 +4,7 @@
 # The Sculptor
 
 [![Push Dev](https://github.com/shiroyashik/sculptor/actions/workflows/dev-release.yml/badge.svg?branch=dev)](https://github.com/shiroyashik/sculptor/actions/workflows/dev-release.yml)
+![maintenance-status](https://img.shields.io/badge/maintenance-actively--developed-brightgreen.svg)
 
 Unofficial backend for the Minecraft mod [Figura](https://github.com/FiguraMC/Figura).
 
@@ -19,11 +20,11 @@ I'm keeping the public server running at the moment!
 
 You can use it if running your own Sculptor instance is difficult for you.
 
-To connect, simply change **IP Server** in Figura settings to the address below:
+To connect, simply change **Figura Cloud IP** in Figura settings to the address below:
 
 > figura.shsr.ru
 
-Authentication is enabled on the server via: Mojang and [Ely.By](https://ely.by/)
+Authentication is enabled on the server via: Mojang(Microsoft) and [Ely.By](https://ely.by/)
 
 For reasons beyond my control, the server is not available in some countries.
 
@@ -73,10 +74,15 @@ cargo run --release
 ```
 
 ## Contributing
+![Ask me anything!](https://img.shields.io/badge/Ask%20me-anything-1abc9c.svg)
+on
+[![Telegram](https://badgen.net/static/icon/telegram?icon=telegram&color=cyan&label)](https://t.me/shiroyashik)
+or
+![Discord](https://badgen.net/badge/icon/discord?icon=discord&label)
 
 If you have ideas for new features, have found a bug, or want to suggest improvements,
 please create an [issue](https://github.com/shiroyashik/sculptor/issues)
-or contact me directly via Discord/Telegram (@shiroyashik).
+or contact me directly via Discord/Telegram (**@shiroyashik**).
 
 If you are a Rust developer, you can modify the code yourself and request a Pull Request:
 

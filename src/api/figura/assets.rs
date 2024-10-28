@@ -21,10 +21,10 @@ async fn versions() -> ApiResult<Json<Value>> {
     
     let mut directories = Vec::new();
     
-    let mut entries = fs::read_dir(dir_path).await.map_err(|err| internal_and_log(err))?;
+    let mut entries = fs::read_dir(dir_path).await.map_err(internal_and_log)?;
     
-    while let Some(entry) = entries.next_entry().await.map_err(|err| internal_and_log(err))? {
-        if entry.metadata().await.map_err(|err| internal_and_log(err))?.is_dir() {
+    while let Some(entry) = entries.next_entry().await.map_err(internal_and_log)? {
+        if entry.metadata().await.map_err(internal_and_log)?.is_dir() {
             if let Some(name) = entry.file_name().to_str() {
                 let name = name.to_string();
                 if !name.starts_with('.') {
@@ -38,7 +38,7 @@ async fn versions() -> ApiResult<Json<Value>> {
 }
 
 async fn hashes(Path(version): Path<String>) -> ApiResult<Json<IndexMap<String, Value>>> {
-    let map = index_assets(&version).await.map_err(|err| internal_and_log(err))?;
+    let map = index_assets(&version).await.map_err(internal_and_log)?;
     Ok(Json(map))
 }
 
@@ -49,7 +49,7 @@ async fn download(Path((version, path)): Path<(String, String)>) -> ApiResult<Ve
         return Err(ApiError::NotFound)
     };
     let mut buffer = Vec::new();
-    file.read_to_end(&mut buffer).await.map_err(|err| internal_and_log(err))?;
+    file.read_to_end(&mut buffer).await.map_err(internal_and_log)?;
     Ok(buffer)
 }
 
@@ -65,13 +65,11 @@ async fn index_assets(version: &str) -> anyhow::Result<IndexMap<String, Value>> 
             Err(_) => continue
         };
 
-        let path: String;
-
-        if cfg!(windows) {
-            path = entry.path().strip_prefix(version_path.clone())?.to_string_lossy().to_string().replace("\\", "/");
+        let path: String = if cfg!(windows) {
+            entry.path().strip_prefix(version_path.clone())?.to_string_lossy().to_string().replace("\\", "/")
         } else {
-            path = entry.path().strip_prefix(version_path.clone())?.to_string_lossy().to_string();
-        }
+            entry.path().strip_prefix(version_path.clone())?.to_string_lossy().to_string()
+        };
 
         map.insert(path, Value::from(hex::encode(digest(&SHA256, &data).as_ref())));
     }

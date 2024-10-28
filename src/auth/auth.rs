@@ -83,8 +83,8 @@ async fn fetch_json(
     trace!("{res:?}");
     match res.status().as_u16() {
         200 => {
-            let json = serde_json::from_str::<serde_json::Value>(&res.text().await?).with_context(|| format!("Cant deserialize"))?;
-            let uuid = get_id_json(&json).with_context(|| format!("Cant get UUID"))?;
+            let json = serde_json::from_str::<serde_json::Value>(&res.text().await?).with_context(|| "Cant deserialize".to_string())?;
+            let uuid = get_id_json(&json).with_context(|| "Cant get UUID".to_string())?;
             Ok((uuid, auth_provider.clone()))
         }
         _ => Err(FetchError::WrongResponse(res.status().as_u16(), res.text().await)),
@@ -131,7 +131,7 @@ pub async fn has_joined(
     // Choosing what error return
 
     // Returns if some internals errors occured
-    if errors.len() != 0 {
+    if !errors.is_empty() {
         error!("Something wrong with your authentification providers!\nMisses: {misses:?}\nErrors: {errors:?}");
         Err(anyhow::anyhow!("{:?}", errors))
         
@@ -203,7 +203,7 @@ impl UManager {
     pub fn insert_user(&self, uuid: Uuid, userinfo: Userinfo) {
         // self.registered.insert(uuid, userinfo)
         let usercopy = userinfo.clone();
-        self.registered.entry(uuid.clone())
+        self.registered.entry(uuid)
             .and_modify(|exist| {
                 if !userinfo.username.is_empty() { exist.username = userinfo.username };
                 if !userinfo.auth_provider.is_empty() { exist.auth_provider = userinfo.auth_provider };

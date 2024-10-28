@@ -5,17 +5,19 @@ use uuid::Uuid;
 
 #[repr(u8)]
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum S2CMessage<'a> {
+pub enum S2CMessage {
     Auth = 0,
-    Ping(Uuid, u32, bool, &'a [u8]) = 1,
+    Ping(Uuid, u32, bool, Vec<u8>) = 1,
     Event(Uuid) = 2, // Updates avatar for other players
-    Toast(u8, &'a str, Option<&'a str>) = 3,
-    Chat(&'a str) = 4,
+    Toast(u8, String, Option<String>) = 3,
+    Chat(String) = 4,
     Notice(u8) = 5,
 }
-impl<'a> TryFrom<&'a [u8]> for S2CMessage<'a> {
+impl TryFrom<&[u8]> for S2CMessage {
+
     type Error = MessageLoadError;
-    fn try_from(buf: &'a [u8]) -> Result<Self, <Self as TryFrom<&'a [u8]>>::Error> {
+
+    fn try_from(buf: &[u8]) -> Result<Self, Self::Error> {
         if buf.is_empty() {
             Err(MessageLoadError::BadLength("S2CMessage", 1, false, 0))
         } else {
@@ -35,7 +37,7 @@ impl<'a> TryFrom<&'a [u8]> for S2CMessage<'a> {
                             Uuid::from_bytes((&buf[1..17]).try_into().unwrap()),
                             u32::from_be_bytes((&buf[17..21]).try_into().unwrap()),
                             buf[21] != 0,
-                            &buf[22..],
+                            buf[22..].to_vec(),
                         ))
                     } else {
                         Err(BadLength("S2CMessage::Ping", 22, false, buf.len()))
@@ -56,12 +58,13 @@ impl<'a> TryFrom<&'a [u8]> for S2CMessage<'a> {
         }
     }
 }
-impl<'a> From<S2CMessage<'a>> for Box<[u8]> {
-    fn from(val: S2CMessage<'a>) -> Self {
+
+impl From<S2CMessage> for Vec<u8> {
+    fn from(val: S2CMessage) -> Self {
         use std::iter::once;
         use S2CMessage::*;
         match val {
-            Auth => Box::new([0]),
+            Auth => vec![0],
             Ping(u, i, s, d) => once(1)
                 .chain(u.into_bytes().iter().copied())
                 .chain(i.to_be_bytes().iter().copied())
@@ -74,20 +77,20 @@ impl<'a> From<S2CMessage<'a>> for Box<[u8]> {
                 .chain(h.as_bytes().iter().copied())
                 .chain(
                     d.into_iter()
-                        .flat_map(|s| once(0).chain(s.as_bytes().iter().copied())),
+                        .flat_map(|s| once(0).chain(s.as_bytes().iter().copied()).collect::<Vec<_>>()), // FIXME: Try find other solution
                 )
                 .collect(),
             Chat(c) => once(4).chain(c.as_bytes().iter().copied()).collect(),
-            Notice(t) => Box::new([5, t]),
+            Notice(t) => vec![5, t],
         }
     }
 }
 
-impl<'a> S2CMessage<'a> {
-    pub fn to_array(&self) -> Box<[u8]> {
-        <S2CMessage as Into<Box<[u8]>>>::into(self.clone())
-    }
-    pub fn to_vec(&self) -> Vec<u8> {
-        self.to_array().to_vec()
-    }
-}
+// impl<'a> S2CMessage<'a> {
+//     pub fn to_array(&self) -> Box<[u8]> {
+//         <S2CMessage as Into<Box<[u8]>>>::into(self.clone())
+//     }
+//     pub fn to_vec(&self) -> Vec<u8> {
+//         self.to_array().to_vec()
+//     }
+// }

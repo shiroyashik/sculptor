@@ -1,6 +1,8 @@
 use std::fmt::*;
 use std::ops::RangeInclusive;
 
+use thiserror::Error;
+
 #[derive(Debug)]
 pub enum MessageLoadError {
     BadEnum(&'static str, RangeInclusive<usize>, usize),
@@ -23,6 +25,35 @@ impl Display for MessageLoadError {
         }
     }
 }
+
+#[derive(Error, Debug)]
+pub enum RADError {
+    #[error("message decode error due: {0}, invalid data: {1}")]
+    DecodeError(MessageLoadError, String),
+    #[error("close, frame: {0:?}")]
+    Close(Option<String>),
+    #[error(transparent)]
+    WebSocketError(#[from] axum::Error),
+    #[error("stream closed")]
+    StreamClosed,
+}
+
+#[derive(Error, Debug)]
+pub enum AuthModeError {
+    #[error("token recieve error due {0}")]
+    RecvError(RADError),
+    #[error("action attempt without authentication")]
+    UnauthorizedAction,
+    #[error("convert error, bytes into string")]
+    ConvertError,
+    #[error("can't send, websocket broken")]
+    SendError,
+    #[error("authentication failure, sending re-auth...")]
+    AuthenticationFailure,
+    #[error("{0} banned")]
+    Banned(String),
+}
+
 #[cfg(test)]
 #[test]
 fn message_load_error_display() {

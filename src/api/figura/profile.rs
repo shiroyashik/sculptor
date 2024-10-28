@@ -14,7 +14,7 @@ use crate::{
     auth::Token, utils::{calculate_file_sha256, format_uuid},
     ApiError, ApiResult, AppState, AVATARS_VAR
 };
-use super::types::S2CMessage;
+use super::websocket::S2CMessage;
 
 pub async fn user_info(
     Path(uuid): Path<Uuid>,
@@ -85,7 +85,7 @@ pub async fn download_avatar(Path(uuid): Path<Uuid>) -> ApiResult<Vec<u8>> {
         return Err(ApiError::NotFound)
     };
     let mut buffer = Vec::new();
-    file.read_to_end(&mut buffer).await.map_err(|err| internal_and_log(err))?;
+    file.read_to_end(&mut buffer).await.map_err(internal_and_log)?;
     Ok(buffer)
 }
 
@@ -103,15 +103,15 @@ pub async fn upload_avatar(
             user_info.username
         );
         let avatar_file = format!("{}/{}.moon", *AVATARS_VAR, user_info.uuid);
-        let mut file = BufWriter::new(fs::File::create(&avatar_file).await.map_err(|err| internal_and_log(err))?);
-        io::copy(&mut request_data.as_ref(), &mut file).await.map_err(|err| internal_and_log(err))?;
+        let mut file = BufWriter::new(fs::File::create(&avatar_file).await.map_err(internal_and_log)?);
+        io::copy(&mut request_data.as_ref(), &mut file).await.map_err(internal_and_log)?;
     }
     Ok("ok".to_string())
 }
 
 pub async fn equip_avatar(Token(token): Token, State(state): State<AppState>) -> ApiResult<&'static str> {
     debug!("[API] S2C : Equip");
-    let uuid = state.user_manager.get(&token).ok_or_else(|| ApiError::Unauthorized)?.uuid;
+    let uuid = state.user_manager.get(&token).ok_or(ApiError::Unauthorized)?.uuid;
     send_event(&state, &uuid).await;
     Ok("ok")
 }
@@ -124,7 +124,7 @@ pub async fn delete_avatar(Token(token): Token, State(state): State<AppState>) -
             user_info.username
         );
         let avatar_file = format!("{}/{}.moon", *AVATARS_VAR, user_info.uuid);
-        fs::remove_file(avatar_file).await.map_err(|err| internal_and_log(err))?;
+        fs::remove_file(avatar_file).await.map_err(internal_and_log)?;
         send_event(&state, &user_info.uuid).await;
     }
     Ok("ok".to_string())
@@ -132,16 +132,16 @@ pub async fn delete_avatar(Token(token): Token, State(state): State<AppState>) -
 
 pub async fn send_event(state: &AppState, uuid: &Uuid) {
     // To user subscribers
-    if let Some(broadcast) = state.broadcasts.get(&uuid) {
-        if broadcast.send(S2CMessage::Event(*uuid).to_vec()).is_err() {
+    if let Some(broadcast) = state.subscribes.get(uuid) {
+        if broadcast.send(S2CMessage::Event(*uuid).into()).is_err() {
             debug!("[WebSocket] Failed to send Event! There is no one to send. UUID: {uuid}")
         };
     } else {
         debug!("[WebSocket] Failed to send Event! Can't find UUID: {uuid}")
     };
     // To user
-    if let Some(session) = state.session.get(&uuid) {
-        if session.send(S2CMessage::Event(*uuid).to_vec()).await.is_err() {
+    if let Some(session) = state.session.get(uuid) {
+        if session.send(super::SessionMessage::Ping(S2CMessage::Event(*uuid).into())).await.is_err() {
             debug!("[WebSocket] Failed to send Event! WS doesn't connected? UUID: {uuid}")
         };
     } else {

@@ -5,27 +5,27 @@ use std::convert::{TryFrom, TryInto};
 
 #[repr(u8)]
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum C2SMessage<'a> {
-    Token(&'a [u8]) = 0,
-    Ping(u32, bool, &'a [u8]) = 1,
+pub enum C2SMessage {
+    Token(Vec<u8>) = 0,
+    Ping(u32, bool, Vec<u8>) = 1,
     Sub(Uuid) = 2, // owo
     Unsub(Uuid) = 3,
 }
 // 6 - 6
-impl<'a> TryFrom<&'a [u8]> for C2SMessage<'a> {
+impl TryFrom<&[u8]> for C2SMessage {
     type Error = MessageLoadError;
-    fn try_from(buf: &'a [u8]) -> Result<Self, <Self as TryFrom<&'a [u8]>>::Error> {
+    fn try_from(buf: &[u8]) -> Result<Self, Self::Error> {
         if buf.is_empty() {
             Err(MessageLoadError::BadLength("C2SMessage", 1, false, 0))
         } else {
             match buf[0] {
-                0 => Ok(C2SMessage::Token(&buf[1..])),
+                0 => Ok(C2SMessage::Token(buf[1..].to_vec())),
                 1 => {
                     if buf.len() >= 6 {
                         Ok(C2SMessage::Ping(
                             u32::from_be_bytes((&buf[1..5]).try_into().unwrap()),
                             buf[5] != 0,
-                            &buf[6..],
+                            buf[6..].to_vec(),
                         ))
                     } else {
                         Err(MessageLoadError::BadLength(
@@ -73,10 +73,10 @@ impl<'a> TryFrom<&'a [u8]> for C2SMessage<'a> {
         }
     }
 }
-impl<'a> From<C2SMessage<'a>> for Box<[u8]> {
-    fn from(val: C2SMessage<'a>) -> Self {
+impl From<C2SMessage> for Vec<u8> {
+    fn from(val: C2SMessage) -> Self {
         use std::iter;
-        let a: Box<[u8]> = match val {
+        let a: Vec<u8> = match val {
             C2SMessage::Token(t) => iter::once(0).chain(t.iter().copied()).collect(),
             C2SMessage::Ping(p, s, d) => iter::once(1)
                 .chain(p.to_be_bytes())
@@ -90,11 +90,11 @@ impl<'a> From<C2SMessage<'a>> for Box<[u8]> {
     }
 }
 
-impl<'a> C2SMessage<'a> {
-    pub fn to_array(&self) -> Box<[u8]> {
-        <C2SMessage as Into<Box<[u8]>>>::into(self.clone())
-    }
-    pub fn to_vec(&self) -> Vec<u8> {
-        self.to_array().to_vec()
-    }
-}
+// impl<'a> C2SMessage<'a> {
+//     pub fn to_array(&self) -> Box<[u8]> {
+//         <C2SMessage as Into<Box<[u8]>>>::into(self.clone())
+//     }
+//     pub fn to_vec(&self) -> Vec<u8> {
+//         self.to_array().to_vec()
+//     }
+// }

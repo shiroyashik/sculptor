@@ -28,7 +28,7 @@ pub(super) async fn raw(
         Some(uuid) => {
             // for only one
             let tx = state.session.get(&uuid).ok_or_else(|| { warn!("unknown uuid"); crate::ApiError::NotFound })?;
-            tx.value().send(payload).await.map_err(|err| internal_and_log(err))?;
+            tx.value().send(crate::api::figura::SessionMessage::Ping(payload)).await.map_err(internal_and_log)?;
             Ok("ok")
         },
         None => {
@@ -53,8 +53,8 @@ pub(super) async fn sub_raw(
     match query.uuid {
         Some(uuid) => {
             // for only one
-            let tx = state.broadcasts.get(&uuid).ok_or_else(|| { warn!("unknown uuid"); crate::ApiError::NotFound })?;
-            tx.value().send(payload).map_err(|err| internal_and_log(err))?;
+            let tx = state.subscribes.get(&uuid).ok_or_else(|| { warn!("unknown uuid"); crate::ApiError::NotFound })?;
+            tx.value().send(payload).map_err(internal_and_log)?;
             Ok("ok")
         },
         None => {

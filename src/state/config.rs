@@ -62,11 +62,11 @@ pub struct BannedPlayer {
     pub name: String,
 }
 
-impl Into<Userinfo> for BannedPlayer {
-    fn into(self) -> Userinfo {
+impl From<BannedPlayer> for Userinfo {
+    fn from(val: BannedPlayer) -> Self {
         Userinfo {
-            uuid: self.uuid,
-            username: self.name,
+            uuid: val.uuid,
+            username: val.name,
             banned: true,
             ..Default::default()
         }
