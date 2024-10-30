@@ -65,7 +65,7 @@ async fn handle_socket(mut ws: WebSocket, state: AppState) {
 }
 
 async fn main_worker(session: &mut WSSession, ws: &mut WebSocket, state: &AppState) -> anyhow::Result<()> {
-    tracing::debug!("WebSocket control for {} is transferred to the main worker", session.user.username);
+    tracing::debug!("WebSocket control for {} is transferred to the main worker", session.user.nickname);
     loop {
         tokio::select! {
             external_msg = ws.recv_and_decode() => {
@@ -96,7 +96,7 @@ async fn main_worker(session: &mut WSSession, ws: &mut WebSocket, state: &AppSta
                         let _ = session.subs_tx.send(s2c_ping);
                     },
                     C2SMessage::Sub(uuid) => {
-                        tracing::debug!("[WebSocket] {} subscribes to {}", session.user.username, uuid);
+                        tracing::debug!("[WebSocket] {} subscribes to {}", session.user.nickname, uuid);
                         
                         // Doesn't allow to subscribe to yourself
                         if session.user.uuid != uuid {
@@ -114,11 +114,11 @@ async fn main_worker(session: &mut WSSession, ws: &mut WebSocket, state: &AppSta
                         }
                     },
                     C2SMessage::Unsub(uuid) => {
-                        tracing::debug!("[WebSocket] {} unsubscribes from {}", session.user.username, uuid);
+                        tracing::debug!("[WebSocket] {} unsubscribes from {}", session.user.nickname, uuid);
 
                         match session.sub_workers_aborthandles.get(&uuid) {
                             Some(handle) => handle.abort(),
-                            None => tracing::warn!("[WebSocket] {} was not subscribed.", session.user.username),
+                            None => tracing::warn!("[WebSocket] {} was not subscribed.", session.user.nickname),
                         };
                     },
                 }
@@ -134,7 +134,7 @@ async fn main_worker(session: &mut WSSession, ws: &mut WebSocket, state: &AppSta
                             .inspect_err(
                                 |kind| tracing::warn!("[WebSocket] Didn't get the ban message due to {}", kind)
                             );
-                        bail!("{} banned!", session.user.username)
+                        bail!("{} banned!", session.user.nickname)
                     },
                 }
             }
@@ -178,7 +178,7 @@ async fn authenticate(socket: &mut WebSocket, state: &AppState) -> Result<Userin
                                     .inspect_err(
                                         |kind| tracing::warn!("[WebSocket] Didn't get the ban message due to {}", kind)
                                     );
-                                Err(AuthModeError::Banned(user.username.clone()))
+                                Err(AuthModeError::Banned(user.nickname.clone()))
                             }
                         },
                         None => {

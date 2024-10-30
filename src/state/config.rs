@@ -66,7 +66,7 @@ impl From<BannedPlayer> for Userinfo {
     fn from(val: BannedPlayer) -> Self {
         Userinfo {
             uuid: val.uuid,
-            username: val.name,
+            nickname: val.name,
             banned: true,
             ..Default::default()
         }

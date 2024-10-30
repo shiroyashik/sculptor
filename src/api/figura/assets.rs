@@ -71,7 +71,7 @@ async fn index_assets(version: &str) -> anyhow::Result<IndexMap<String, Value>> 
             entry.path().strip_prefix(version_path.clone())?.to_string_lossy().to_string()
         };
 
-        map.insert(path, Value::from(hex::encode(digest(&SHA256, &data).as_ref())));
+        map.insert(path, Value::from(faster_hex::hex_string(digest(&SHA256, &data).as_ref())));
     }
 
     Ok(map)

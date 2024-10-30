@@ -14,7 +14,7 @@ tracing = "0.1"
 
 # Errors handelers
 anyhow = "1.0"
-thiserror = "1.0"
+thiserror = "2.0"
 chrono = { version = "0.4", features = ["now", "serde"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
@@ -22,13 +22,17 @@ toml = "0.8"
 
 # Other
 dashmap = { version = "6.0", features = ["serde"] }
-hex = "0.4"
+faster-hex = "0.10"
 uuid = { version = "1.11", features = ["serde"] }
 base64 = "0.22"
 reqwest = { version = "0.12", features = ["blocking", "json"] }
 dotenvy = "0.15"
 semver = "1.0"
 walkdir = "2.5"
+indexmap = { version = "2.6", features = ["serde"] }
+zip = "2.2"
+lazy_static = "1.5"
+notify = "7.0"
 
 # Crypto
 ring = "0.17"
@@ -37,10 +41,7 @@ rand = "0.8"
 # Web framework
 axum = { version = "0.7", features = ["ws", "macros", "http2"] }
 tower-http = { version = "0.6", features = ["trace"] }
-tokio = { version = "1.37", features = ["full"] }
-indexmap = { version = "2.6", features = ["serde"] }
-zip = "2.2"
-lazy_static = "1.5"
+tokio = { version = "1.41", features = ["full"] }
 
 [dev-dependencies]
 cross = "0.2.5"

@@ -19,7 +19,7 @@ async fn id(
     State(state): State<AppState>,
 ) -> String {
     let server_id =
-        hex::encode(&digest(&digest::SHA1_FOR_LEGACY_USE_ONLY, &rand()).as_ref()[0..20]);
+        faster_hex::hex_string(&digest(&digest::SHA1_FOR_LEGACY_USE_ONLY, &rand()).as_ref()[0..20]);
     let state = state.user_manager;
     state.pending_insert(server_id.clone(), query.username);
     server_id
@@ -32,11 +32,11 @@ async fn verify(
     State(state): State<AppState>,
 ) -> Response {
     let server_id = query.id.clone();
-    let username = state.user_manager.pending_remove(&server_id).unwrap().1; // TODO: Add error check
+    let nickname = state.user_manager.pending_remove(&server_id).unwrap().1; // TODO: Add error check
     let userinfo = match has_joined(
         state.config.read().await.auth_providers.clone(),
         &server_id,
-        &username
+        &nickname
     ).await {
         Ok(d) => d,
         Err(_e) => {
@@ -47,12 +47,12 @@ async fn verify(
     if let Some((uuid, auth_provider)) = userinfo {
         let umanager = state.user_manager;
         if umanager.is_banned(&uuid) {
-            info!("[Authentication] {username} tried to log in, but was banned");
+            info!("[Authentication] {nickname} tried to log in, but was banned");
             return (StatusCode::BAD_REQUEST, "You're banned!".to_string()).into_response();
         }
-        info!("[Authentication] {username} logged in using {}", auth_provider.name);
+        info!("[Authentication] {nickname} logged in using {}", auth_provider.name);
         let userinfo = Userinfo {
-            username,
+            nickname,
             uuid,
             token: Some(server_id.clone()),
             auth_provider,
@@ -70,7 +70,7 @@ async fn verify(
         }
         (StatusCode::OK, server_id.to_string()).into_response()
     } else {
-        info!("[Authentication] failed to verify {username}");
+        info!("[Authentication] failed to verify {nickname}");
         (StatusCode::BAD_REQUEST, "failed to verify".to_string()).into_response()
     }
 }

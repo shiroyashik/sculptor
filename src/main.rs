@@ -93,7 +93,6 @@ async fn main() -> Result<()> {
 
     // 3. Display info about current instance and check updates
     tracing::info!("The Sculptor v{SCULPTOR_VERSION} ({REPOSITORY})");
-    // let _ = check_updates(REPOSITORY, SCULPTOR_VERSION).await; // Currently, there is no need to do anything with the result of the function
 
     match get_latest_version(REPOSITORY).await {
         Ok(latest_version) => {
@@ -168,25 +167,13 @@ async fn app() -> Result<bool> {
         config,
     };
 
-    // FIXME: FIXME: FIXME: ПЕРЕДЕЛАЙ ЭТО! НЕМЕДЛЕННО! ЕБУЧИЙ ПОЗОР :<
-    // Automatic update of configuration while the server is running
-    let config_update = Arc::clone(&state.config);
-    let umanager = Arc::clone(&state.user_manager);
-    let session = Arc::clone(&state.session);
-    update_advanced_users(&config_update.read().await.advanced_users.clone(), &umanager, &session).await;
-    tokio::spawn(async move {
-        loop {
-            tokio::time::sleep(std::time::Duration::from_secs(10)).await;
-            let new_config = Config::parse(CONFIG_VAR.clone().into());
-            let mut config = config_update.write().await;
-
-            if new_config != *config {
-                tracing::info!("Server configuration modification detected!");
-                *config = new_config;
-                update_advanced_users(&config.advanced_users.clone(), &umanager, &session).await;
-            }
-        }
-    });
+    // Automatic update of configuration/ban list while the server is running
+    tokio::spawn(update_advanced_users(
+        CONFIG_VAR.clone().into(),
+        Arc::clone(&state.user_manager),
+        Arc::clone(&state.session),
+        Arc::clone(&state.config)
+    ));
     if state.config.read().await.mc_folder.exists() {
         tokio::spawn(update_bans_from_minecraft(
             state.config.read().await.mc_folder.clone(),
@@ -242,11 +229,9 @@ async fn shutdown_signal() {
     let terminate = std::future::pending::<()>();
     tokio::select! {
         () = ctrl_c => {
-            println!();
             tracing::info!("Ctrl+C signal received");
         },
         () = terminate => {
-            println!();
             tracing::info!("Terminate signal received");
         },
     }

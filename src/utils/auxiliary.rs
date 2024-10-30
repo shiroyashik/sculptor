@@ -1,16 +1,15 @@
-use std::{fs::File, io::Read, path::{Path, PathBuf}};
+use std::{fs::File, io::Read, path::{Path, PathBuf}, sync::Arc};
 
+use notify::{Event, Watcher};
+use tokio::{io::AsyncReadExt, sync::RwLock};
 use base64::prelude::*;
-use rand::{distributions::Alphanumeric, thread_rng, Rng};
+use rand::{thread_rng, Rng};
 use ring::digest::{self, digest};
-use tokio::io::AsyncReadExt;
-use tracing::{error, info};
 use uuid::Uuid;
 use chrono::prelude::*;
 
-use crate::{auth::{UManager, Userinfo}, state::{AdvancedUsers, BannedPlayer}};
+use crate::{auth::Userinfo, state::{BannedPlayer, Config}, UManager};
 
-// Core functions
 pub fn rand() -> [u8; 50] {
     let mut rng = thread_rng();
     let distr = rand::distributions::Uniform::new_inclusive(0, 255);
@@ -20,48 +19,63 @@ pub fn rand() -> [u8; 50] {
     }
     nums
 }
-// End of Core functions
-
-pub fn _generate_hex_string(length: usize) -> String {
-    // FIXME: Variable doesn't using!
-    let rng = thread_rng();
-    let random_bytes: Vec<u8> = rng.sample_iter(&Alphanumeric).take(length / 2).collect();
-
-    hex::encode(random_bytes)
-}
 
 pub async fn update_advanced_users(
-    value: &std::collections::HashMap<Uuid, AdvancedUsers>,
-    umanager: &UManager,
-    sessions: &dashmap::DashMap<Uuid, tokio::sync::mpsc::Sender<crate::api::figura::SessionMessage>>
+    path: PathBuf,
+    umanager: Arc<UManager>,
+    sessions: Arc<dashmap::DashMap<Uuid, tokio::sync::mpsc::Sender<crate::api::figura::SessionMessage>>>,
+    config: Arc<RwLock<Config>>,
 ) {
-    let users: Vec<(Uuid, Userinfo)> = value
-        .iter()
-        .map( |(uuid, userdata)| {
-            (
-            *uuid,
-            Userinfo { 
-                uuid: *uuid,
-                username: userdata.username.clone(),
-                banned: userdata.banned,
-                ..Default::default()
-            }
-        )})
-        .collect();
+    let (tx, mut rx) = tokio::sync::mpsc::channel::<notify::Result<Event>>(1);
+    tx.send(Ok(notify::Event::default())).await.unwrap();
+    let mut watcher = notify::RecommendedWatcher::new(
+        move |res| {
+            tx.blocking_send(res).unwrap();
+        },
+        notify::Config::default(),
+    ).unwrap();
+    watcher.watch(&path, notify::RecursiveMode::NonRecursive).unwrap();
 
-    for (uuid, userinfo) in users {
-        umanager.insert_user(uuid, userinfo.clone());
-        if userinfo.banned {
-            umanager.ban(&userinfo);
-            if let Some(tx) = sessions.get(&uuid) {let _ = tx.send(crate::api::figura::SessionMessage::Banned).await;}
+    let mut first_time = true;
+    while rx.recv().await.is_some() {
+        let new_config = Config::parse(path.clone());
+        let mut config = config.write().await;
+
+        if new_config != *config || first_time {
+            if !first_time { tracing::info!("Server configuration modification detected!") }
+            first_time = false;
+            *config = new_config;
+            let users: Vec<(Uuid, Userinfo)> = config.advanced_users
+                .iter()
+                .map( |(uuid, userdata)| {
+                    (
+                    *uuid,
+                    Userinfo { 
+                        uuid: *uuid,
+                        nickname: userdata.username.clone(),
+                        banned: userdata.banned,
+                        ..Default::default()
+                    }
+                )})
+                .collect();
+        
+            for (uuid, userinfo) in users {
+                umanager.insert_user(uuid, userinfo.clone());
+                if userinfo.banned {
+                    umanager.ban(&userinfo);
+                    if let Some(tx) = sessions.get(&uuid) {let _ = tx.send(crate::api::figura::SessionMessage::Banned).await;}
+                } else {
+                    umanager.unban(&uuid);
+                }
+            }
         }
     }
 }
 
 pub async fn update_bans_from_minecraft(
     folder: PathBuf,
-    umanager: std::sync::Arc<UManager>,
-    sessions: std::sync::Arc<dashmap::DashMap<Uuid, tokio::sync::mpsc::Sender<crate::api::figura::SessionMessage>>>
+    umanager: Arc<UManager>,
+    sessions: Arc<dashmap::DashMap<Uuid, tokio::sync::mpsc::Sender<crate::api::figura::SessionMessage>>>
 ) {
     let path = folder.join("banned-players.json");
     let mut file = tokio::fs::File::open(path.clone()).await.expect("Access denied or banned-players.json doesn't exists!");
@@ -71,10 +85,10 @@ pub async fn update_bans_from_minecraft(
     // initialize
     file.read_to_string(&mut data).await.expect("cant read banned-players.json");
     let mut old_bans: Vec<BannedPlayer> = serde_json::from_str(&data).expect("cant parse banned-players.json");
-    
+
     if !old_bans.is_empty() {
         let names: Vec<String> = old_bans.iter().map(|user| user.name.clone()).collect();
-        info!("Banned players: {}", names.join(", "));
+        tracing::info!("Banned players: {}", names.join(", "));
     }
 
     for player in &old_bans {
@@ -82,19 +96,27 @@ pub async fn update_bans_from_minecraft(
         if let Some(tx) = sessions.get(&player.uuid) {let _ = tx.send(crate::api::figura::SessionMessage::Banned).await;}
     }
 
+    let (tx, mut rx) = tokio::sync::mpsc::channel::<notify::Result<Event>>(1);
+    let mut watcher = notify::RecommendedWatcher::new(
+        move |res| {
+            tx.blocking_send(res).unwrap();
+        },
+        notify::Config::default(),
+    ).unwrap();
+    watcher.watch(&path, notify::RecursiveMode::NonRecursive).unwrap();
+
     // old_bans
-    loop {
-        tokio::time::sleep(std::time::Duration::from_secs(10)).await;
+    while rx.recv().await.is_some() {
         let mut file = tokio::fs::File::open(path.clone()).await.expect("Access denied or file doesn't exists!");
         let mut data = String::new();
         file.read_to_string(&mut data).await.expect("cant read banned-players.json");
         let new_bans: Vec<BannedPlayer> = if let Ok(res) = serde_json::from_str(&data) { res } else {
-            error!("Error occured while parsing a banned-players.json");
+            tracing::error!("Error occured while parsing a banned-players.json");
             continue;
         };
 
         if new_bans != old_bans {
-            info!("Minecraft ban list modification detected!");
+            tracing::info!("Minecraft ban list modification detected!");
             let unban: Vec<&BannedPlayer> = old_bans.iter().filter(|user| !new_bans.contains(user)).collect();
             let mut unban_names = unban.iter().map(|user| user.name.clone()).collect::<Vec<String>>().join(", ");
             if !unban.is_empty() {
@@ -110,13 +132,12 @@ pub async fn update_bans_from_minecraft(
                     if let Some(tx) = sessions.get(&player.uuid) {let _ = tx.send(crate::api::figura::SessionMessage::Banned).await;}
                 }
             } else { ban_names = String::from("-")};
-            info!("List of changes:\n    Banned: {ban_names}\n    Unbanned: {unban_names}");
+            tracing::info!("List of changes:\n    Banned: {ban_names}\n    Unbanned: {unban_names}");
             // Write new to old for next iteration
             old_bans = new_bans;
         }
     }
 }
-
 
 pub fn format_uuid(uuid: &Uuid) -> String {
     // let uuid = Uuid::parse_str(&uuid)?; TODO: Вероятно format_uuid стоит убрать
@@ -138,7 +159,7 @@ pub fn calculate_file_sha256(file_path: &str) -> Result<String, std::io::Error> 
     let hash = binding.as_ref();
 
     // Convert the hash to a hexadecimal string
-    let hex_hash = hex::encode(hash);
+    let hex_hash = faster_hex::hex_string(hash);
 
     Ok(hex_hash)
 }

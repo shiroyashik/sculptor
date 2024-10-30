@@ -21,7 +21,8 @@ pub(super) async fn raw(
 ) -> ApiResult<&'static str> {
     trace!(body = body);
     state.config.read().await.clone().verify_token(&token)?;
-    let payload = hex::decode(body).map_err(|err| { warn!("not raw data"); error_and_log(err, crate::ApiError::NotAcceptable) })?;
+    let mut payload = vec![0; body.len() / 2];
+    faster_hex::hex_decode(body.as_bytes(), &mut payload).map_err(|err| { warn!("not raw data"); error_and_log(err, crate::ApiError::NotAcceptable) })?;
     debug!("{:?}", payload);
 
     match query.uuid {
@@ -47,7 +48,8 @@ pub(super) async fn sub_raw(
 ) -> ApiResult<&'static str> {
     trace!(body = body);
     state.config.read().await.clone().verify_token(&token)?;
-    let payload = hex::decode(body).map_err(|err| { warn!("not raw data"); error_and_log(err, crate::ApiError::NotAcceptable) })?;
+    let mut payload = vec![0; body.len() / 2];
+    faster_hex::hex_decode(body.as_bytes(), &mut payload).map_err(|err| { warn!("not raw data"); error_and_log(err, crate::ApiError::NotAcceptable) })?;
     debug!("{:?}", payload);
     
     match query.uuid {

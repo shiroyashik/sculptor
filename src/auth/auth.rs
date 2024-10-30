@@ -19,8 +19,12 @@ pub struct Token(pub String);
 
 impl Token {
     pub async fn check_auth(self, state: &AppState) -> ApiResult<()> {
-        if state.user_manager.is_authenticated(&self.0) {
-            Ok(())
+        if let Some(user) = state.user_manager.get(&self.0) {
+            if !user.banned {
+                Ok(())
+            } else {
+                Err(ApiError::Unauthorized)
+            }
         } else {
             Err(ApiError::Unauthorized)
         }
@@ -191,7 +195,7 @@ impl UManager {
                     warn!("Rejected attempt to create a second session for the same user!");
                     return Err(())
                 }
-                debug!("`{}` already have token in registered profile (old token already removed from 'authenticated')", userinfo.username);
+                debug!("`{}` already have token in registered profile (old token already removed from 'authenticated')", userinfo.nickname);
             }
         }
 
@@ -205,7 +209,7 @@ impl UManager {
         let usercopy = userinfo.clone();
         self.registered.entry(uuid)
             .and_modify(|exist| {
-                if !userinfo.username.is_empty() { exist.username = userinfo.username };
+                if !userinfo.nickname.is_empty() { exist.nickname = userinfo.nickname };
                 if !userinfo.auth_provider.is_empty() { exist.auth_provider = userinfo.auth_provider };
                 if userinfo.rank != Userinfo::default().rank { exist.rank = userinfo.rank };
                 if userinfo.token.is_some() { exist.token = userinfo.token };
@@ -236,7 +240,7 @@ impl UManager {
             user.banned = false;
         };
     }
-    pub fn is_authenticated(&self, token: &String) -> bool {
+    pub fn _is_authenticated(&self, token: &String) -> bool {
         self.authenticated.contains_key(token)
     }
     pub fn _is_registered(&self, uuid: &Uuid) -> bool {

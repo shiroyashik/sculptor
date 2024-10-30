@@ -6,21 +6,20 @@ use uuid::Uuid;
 #[serde(rename_all = "camelCase")]
 pub struct Userinfo {
     pub uuid: Uuid,
-    pub username: String,
+    pub nickname: String,
     pub rank: String,
     pub last_used: String,
     pub auth_provider: AuthProvider,
     pub token: Option<String>,
     pub version: String,
     pub banned: bool
-    
 }
 
 impl Default for Userinfo {
     fn default() -> Self {
         Self {
             uuid: Default::default(),
-            username: Default::default(),
+            nickname: Default::default(),
             rank: "default".to_string(),
             last_used: Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
             auth_provider: Default::default(),

@@ -17,7 +17,7 @@ impl RecvAndDecode for WebSocket {
                             match C2SMessage::try_from(msg.clone().into_data().as_slice()) {
                                 Ok(decoded) => Ok(decoded),
                                 Err(e) => {
-                                    Err(RADError::DecodeError(e, hex::encode(msg.into_data())))
+                                    Err(RADError::DecodeError(e, faster_hex::hex_string(&msg.into_data())))
                                 },
                             }
                         }

@@ -100,7 +100,7 @@ pub async fn upload_avatar(
         tracing::info!(
             "{} ({}) trying to upload an avatar",
             user_info.uuid,
-            user_info.username
+            user_info.nickname
         );
         let avatar_file = format!("{}/{}.moon", *AVATARS_VAR, user_info.uuid);
         let mut file = BufWriter::new(fs::File::create(&avatar_file).await.map_err(internal_and_log)?);
@@ -121,7 +121,7 @@ pub async fn delete_avatar(Token(token): Token, State(state): State<AppState>) -
         tracing::info!(
             "{} ({}) is trying to delete the avatar",
             user_info.uuid,
-            user_info.username
+            user_info.nickname
         );
         let avatar_file = format!("{}/{}.moon", *AVATARS_VAR, user_info.uuid);
         fs::remove_file(avatar_file).await.map_err(internal_and_log)?;
