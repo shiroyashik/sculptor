@@ -28,7 +28,7 @@ pub async fn update_advanced_users(
 ) {
     let (tx, mut rx) = tokio::sync::mpsc::channel::<notify::Result<Event>>(1);
     tx.send(Ok(notify::Event::default())).await.unwrap();
-    let mut watcher = notify::RecommendedWatcher::new(
+    let mut watcher = notify::PollWatcher::new(
         move |res| {
             tx.blocking_send(res).unwrap();
         },
@@ -97,7 +97,7 @@ pub async fn update_bans_from_minecraft(
     }
 
     let (tx, mut rx) = tokio::sync::mpsc::channel::<notify::Result<Event>>(1);
-    let mut watcher = notify::RecommendedWatcher::new(
+    let mut watcher = notify::PollWatcher::new(
         move |res| {
             tx.blocking_send(res).unwrap();
         },
