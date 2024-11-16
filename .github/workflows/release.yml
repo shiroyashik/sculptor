@@ -40,6 +40,7 @@ jobs:
       # Create necessary files and directories
       - name: Create necessary files
         run: |
+          mkdir -p target/output
           cp Config.example.toml target/output/Config.toml
 
       # Compress the output | Windows
