@@ -61,6 +61,6 @@ pub struct AuthProviders(pub Vec<AuthProvider>);
 pub fn default_authproviders() -> AuthProviders {
     AuthProviders(vec![
         AuthProvider { name: "Mojang".to_string(), url: "https://sessionserver.mojang.com/session/minecraft/hasJoined".to_string() },
-        AuthProvider { name: "ElyBy".to_string(), url: "http://minecraft.ely.by/session/hasJoined".to_string() }
+        AuthProvider { name: "ElyBy".to_string(), url: "https://account.ely.by/api/minecraft/session/hasJoined".to_string() }
         ])
 }

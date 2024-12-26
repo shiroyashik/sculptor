@@ -12,7 +12,7 @@ listen = "0.0.0.0:6665"
 ## If not set, default providers (Mojang, ElyBy) will be provided.
 # authProviders = [
 #     { name = "Mojang", url = "https://sessionserver.mojang.com/session/minecraft/hasJoined" },
-#     { name = "ElyBy", url = "http://minecraft.ely.by/session/hasJoined" },
+#     { name = "ElyBy", url = "https://account.ely.by/api/minecraft/session/hasJoined" },
 # ]
 
 ## Enabling Asset Updater.
