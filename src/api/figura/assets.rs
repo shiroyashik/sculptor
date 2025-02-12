@@ -12,8 +12,8 @@ use crate::{api::errors::internal_and_log, ApiError, ApiResult, AppState, ASSETS
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/", get(versions))
-        .route("/:version", get(hashes))
-        .route("/:version/*key", get(download))
+        .route("/{version}", get(hashes))
+        .route("/{version}/{*path}", get(download))
 }
 
 async fn versions() -> ApiResult<Json<Value>> {

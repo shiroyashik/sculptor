@@ -35,7 +35,7 @@ To run it you will need a configured reverse proxy server.
 
 Make sure that the reverse proxy you are using supports WebSocket and valid certificates are used for HTTPS connections.
 
-> [!IMPORTANT]
+> [!WARNING]
 > NGINX requires additional configuration to work with websocket!
 
 ### Docker
@@ -57,10 +57,10 @@ See the [pre-built archives](https://github.com/shiroyashik/sculptor/releases/la
 A pre-installed Rust will be required for the build
 
 ```sh
-# Clone the latest release
+# Clone the pre-release
 git clone https://github.com/shiroyashik/sculptor.git
-# or a dev release
-git clone --branch dev https://github.com/shiroyashik/sculptor.git
+# or clone specific version
+git clone --depth 1 --branch v0.4.0 https://github.com/shiroyashik/sculptor.git
 # Enter the folder
 cd sculptor
 # Copy Sculptor configuration file
@@ -72,6 +72,13 @@ cargo build --release
 # or run from cargo
 cargo run --release
 ```
+
+#### Compiling from the `master` Branch
+
+> [!IMPORTANT]
+> Installing Sculptor directly from the `master` branch is **not recommended** for most users. This branch contains pre-release code that is actively being developed and may include broken or unstable features. Additionally, using the `master` branch could potentially cause issues with data migration when upgrading to future stable releases.
+>
+> If you still choose to use the `master` branch, please be aware that you may encounter bugs or unexpected behavior. Your feedback and bug reports are highly appreciated. However, for a more stable and reliable experience, we strongly advise using the **latest official release** instead.
 
 ## Contributing
 ![Ask me anything!](https://img.shields.io/badge/Ask%20me-anything-1abc9c.svg)
@@ -91,10 +98,6 @@ If you are a Rust developer, you can modify the code yourself and request a Pull
 3. Submit a PR.
 
 Glad for any help from ideas to PRs. ❤
-
-#### P.S.
-
-The [“master”](https://github.com/shiroyashik/sculptor/tree/master) branch contains the source code of the latest release. [“dev”](https://github.com/shiroyashik/sculptor/tree/dev) branch is used for development.
 
 ## License
 

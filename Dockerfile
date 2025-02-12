@@ -1,6 +1,6 @@
 ## Chef
 # FROM clux/muslrust:stable AS chef
-FROM rust:1.82.0-alpine3.20 AS chef
+FROM rust:1.84-alpine3.21 AS chef
 USER root
 RUN apk add --no-cache musl-dev libressl-dev
 RUN cargo install cargo-chef
@@ -23,7 +23,7 @@ COPY src src
 RUN cargo build --release --target x86_64-unknown-linux-musl --bin sculptor
 
 ## Runtime
-FROM alpine:3.20.0 AS runtime
+FROM alpine:3.21 AS runtime
 WORKDIR /app
 COPY --from=builder /build/target/x86_64-unknown-linux-musl/release/sculptor /app/sculptor
 

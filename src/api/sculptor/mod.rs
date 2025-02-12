@@ -14,8 +14,8 @@ pub fn router(limit: usize) -> Router<AppState> {
         .route("/user/list", get(users::list))
         .route("/user/sessions", get(users::list_sessions))
         .route("/user/create", post(users::create_user))
-        .route("/user/:uuid/ban", post(users::ban))
-        .route("/user/:uuid/unban", post(users::unban))
-        .route("/avatar/:uuid", put(avatars::upload_avatar).layer(DefaultBodyLimit::max(limit)))
-        .route("/avatar/:uuid", delete(avatars::delete_avatar))
+        .route("/user/{uuid}/ban", post(users::ban))
+        .route("/user/{uuid}/unban", post(users::unban))
+        .route("/avatar/{uuid}", put(avatars::upload_avatar).layer(DefaultBodyLimit::max(limit)))
+        .route("/avatar/{uuid}", delete(avatars::delete_avatar))
 }

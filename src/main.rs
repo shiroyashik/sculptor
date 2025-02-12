@@ -107,7 +107,7 @@ async fn main() -> Result<()> {
         },
     }
 
-    // 4. Starting an app() that starts to serve. If app() returns true, the sculptor will be restarted. for future
+    // 4. Starting an app() that starts to serve. If app() returns true, the sculptor will be restarted. TODO: for future
     loop {
         if !app().await? {
             break;
@@ -174,6 +174,7 @@ async fn app() -> Result<bool> {
         Arc::clone(&state.session),
         Arc::clone(&state.config)
     ));
+    // Blacklist auto update
     if state.config.read().await.mc_folder.exists() {
         tokio::spawn(update_bans_from_minecraft(
             state.config.read().await.mc_folder.clone(),
@@ -185,13 +186,13 @@ async fn app() -> Result<bool> {
     let api = Router::new()
         .nest("//auth", api_auth::router()) // => /api//auth ¯\_(ツ)_/¯
         .nest("//assets", api_assets::router())
-        .nest("/v1", api::v1::router(limit))
+        .nest("/v1", api::sculptor::router(limit))
         .route("/limits", get(api_info::limits))
         .route("/version", get(api_info::version))
         .route("/motd", get(api_info::motd))
         .route("/equip", post(api_profile::equip_avatar))
-        .route("/:uuid", get(api_profile::user_info))
-        .route("/:uuid/avatar", get(api_profile::download_avatar))
+        .route("/{uuid}", get(api_profile::user_info))
+        .route("/{uuid}/avatar", get(api_profile::download_avatar))
         .route("/avatar", put(api_profile::upload_avatar).layer(DefaultBodyLimit::max(limit)))
         .route("/avatar", delete(api_profile::delete_avatar));
 
@@ -205,9 +206,11 @@ async fn app() -> Result<bool> {
 
     let listener = tokio::net::TcpListener::bind(listen).await?;
     tracing::info!("Listening on {}", listener.local_addr()?);
+
     axum::serve(listener, app)
         .with_graceful_shutdown(shutdown_signal())
         .await?;
+    
     tracing::info!("Serve stopped.");
     Ok(false)
 }

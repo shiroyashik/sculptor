@@ -2,11 +2,11 @@ use std::sync::Arc;
 
 use anyhow::{anyhow, Context};
 use axum::{
-    async_trait, extract::{FromRequestParts, State}, http::{request::Parts, StatusCode}
+    extract::{FromRequestParts, OptionalFromRequestParts, State}, http::{request::Parts, StatusCode}
 };
 use dashmap::DashMap;
 use thiserror::Error;
-use tracing::{debug, error, trace, warn};
+use tracing::{debug, error, instrument, trace, warn};
 use uuid::Uuid;
 
 use crate::{ApiError, ApiResult, AppState, TIMEOUT, USER_AGENT};
@@ -18,7 +18,7 @@ use super::types::*;
 pub struct Token(pub String);
 
 impl Token {
-    pub async fn check_auth(self, state: &AppState) -> ApiResult<()> {
+    pub async fn _check_auth(self, state: &AppState) -> ApiResult<()> {
         if let Some(user) = state.user_manager.get(&self.0) {
             if !user.banned {
                 Ok(())
@@ -31,7 +31,6 @@ impl Token {
     }
 }
 
-#[async_trait]
 impl<S> FromRequestParts<S> for Token
 where
     S: Send + Sync,
@@ -48,6 +47,22 @@ where
             Some(token) => Ok(Self(token.to_string())),
             None => Err(StatusCode::UNAUTHORIZED),
         }
+    }
+}
+
+impl<S> OptionalFromRequestParts<S> for Token
+where
+    S: Send + Sync,
+{
+    type Rejection = StatusCode; // Not required
+
+    async fn from_request_parts(parts: &mut Parts, _: &S) -> Result<Option<Self>, Self::Rejection> {
+        let token = parts
+            .headers
+            .get("token")
+            .and_then(|value| value.to_str().ok());
+        trace!(token = ?token);
+        Ok(token.map(|t| Self(t.to_string())))
     }
 }
 // End Extractor
@@ -259,16 +274,33 @@ impl UManager {
 }
 // End of User manager
 
+#[axum::debug_handler]
+#[instrument(skip_all)]
 pub async fn check_auth(
     token: Option<Token>,
     State(state): State<AppState>,
 ) -> ApiResult<&'static str> {
-    debug!("Checking auth actuality...");
     match token {
         Some(token) => {
-            token.check_auth(&state).await?;
-            Ok("ok")
-        },
-        None => Err(ApiError::BadRequest), 
+            match state.user_manager.get(&token.0) {
+                Some(user) => {
+                    if user.banned {
+                        debug!(nickname = user.nickname, status = "banned", "Token owner is banned");
+                        Err(ApiError::Unauthorized)
+                    } else {
+                        debug!(nickname = user.nickname, status = "ok", "Token verified successfully");
+                        Ok("ok")
+                    }
+                }
+                None => {
+                    debug!(token = token.0, status = "invalid", "Invalid token");
+                    Err(ApiError::Unauthorized)
+                }
+            }
+        }
+        None => {
+            debug!(status = "not provided", "Token not provided");
+            Err(ApiError::BadRequest)
+        }
     }
 }

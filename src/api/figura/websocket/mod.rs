@@ -1,6 +1,5 @@
 // mod websocket;
 mod handler;
-mod processor;
 mod types;
 
 // pub use websocket::*;
