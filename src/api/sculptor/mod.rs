@@ -3,7 +3,6 @@ use crate::AppState;
 
 mod http2ws;
 mod users;
-mod types;
 mod avatars;
 
 pub fn router(limit: usize) -> Router<AppState> {
