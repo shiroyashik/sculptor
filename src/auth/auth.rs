@@ -182,6 +182,12 @@ pub struct UManager {
     registered: Arc<DashMap<Uuid, Userinfo>>,
 }
 
+impl Default for UManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl UManager {
     pub fn new() -> Self {
         Self {
@@ -229,6 +235,7 @@ impl UManager {
                 if userinfo.rank != Userinfo::default().rank { exist.rank = userinfo.rank };
                 if userinfo.token.is_some() { exist.token = userinfo.token };
                 if userinfo.version != Userinfo::default().version { exist.version = userinfo.version };
+                exist.last_used = userinfo.last_used;
             }).or_insert(usercopy);
     }
     pub fn get(
@@ -274,7 +281,6 @@ impl UManager {
 }
 // End of User manager
 
-#[axum::debug_handler]
 #[instrument(skip_all)]
 pub async fn check_auth(
     token: Option<Token>,

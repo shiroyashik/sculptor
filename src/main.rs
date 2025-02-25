@@ -6,10 +6,9 @@ use axum::{
 use dashmap::DashMap;
 use tracing_panic::panic_hook;
 use tracing_subscriber::{fmt::{self, time::ChronoLocal}, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
-use std::{path::PathBuf, sync::Arc, env::var};
+use std::{env::var, path::PathBuf, sync::{Arc, LazyLock}};
 use tokio::{fs, sync::RwLock, time::Instant};
 use tower_http::trace::TraceLayer;
-use lazy_static::lazy_static;
 
 // Consts
 mod consts;
@@ -18,12 +17,13 @@ pub use consts::*;
 // Errors
 pub use api::errors::{ApiResult, ApiError};
 
+// Metrics
+mod metrics;
+pub use metrics::*;
+
 // API
 mod api;
-use api::{
-    figura::{ws, info as api_info, profile as api_profile, auth as api_auth, assets as api_assets},
-    // v1::{},
-};
+use api::figura::{ws, info as api_info, profile as api_profile, auth as api_auth, assets as api_assets};
 
 // Auth
 mod auth;
@@ -37,23 +37,21 @@ use state::{Config, AppState};
 mod utils;
 use utils::*;
 
-lazy_static! {
-    pub static ref LOGGER_VAR: String = {
-        var(LOGGER_ENV).unwrap_or(String::from("info"))
-    };
-    pub static ref CONFIG_VAR: String = {
-        var(CONFIG_ENV).unwrap_or(String::from("Config.toml"))
-    };
-    pub static ref LOGS_VAR: String = {
-        var(LOGS_ENV).unwrap_or(String::from("logs"))
-    };
-    pub static ref ASSETS_VAR: String = {
-        var(ASSETS_ENV).unwrap_or(String::from("data/assets"))
-    };
-    pub static ref AVATARS_VAR: String = {
-        var(AVATARS_ENV).unwrap_or(String::from("data/avatars"))
-    };
-}
+pub static LOGGER_VAR: LazyLock<String> = LazyLock::new(|| {
+    var(LOGGER_ENV).unwrap_or(String::from("info"))
+});
+pub static CONFIG_VAR: LazyLock<String> = LazyLock::new(|| {
+    var(CONFIG_ENV).unwrap_or(String::from("Config.toml"))
+});
+pub static LOGS_VAR: LazyLock<String> = LazyLock::new(|| {
+    var(LOGS_ENV).unwrap_or(String::from("logs"))
+});
+pub static ASSETS_VAR: LazyLock<String> = LazyLock::new(|| {
+    var(ASSETS_ENV).unwrap_or(String::from("data/assets"))
+});
+pub static AVATARS_VAR: LazyLock<String> = LazyLock::new(|| {
+    var(AVATARS_ENV).unwrap_or(String::from("data/avatars"))
+});
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -128,11 +126,11 @@ async fn app() -> Result<bool> {
     }
 
     // Config
-    let config = Arc::new(RwLock::new(Config::parse(CONFIG_VAR.clone().into())));
-    let listen = config.read().await.listen.clone();
-    let limit = get_limit_as_bytes(config.read().await.limitations.max_avatar_size as usize);
+    let config = Config::parse(CONFIG_VAR.clone().into());
+    let listen = config.listen.clone();
+    let limit = get_limit_as_bytes(config.limitations.max_avatar_size as usize);
 
-    if config.read().await.assets_updater_enabled {
+    if config.assets_updater_enabled {
         // Force update assets if folder or hash file doesn't exists.
         if !(PathBuf::from(&*ASSETS_VAR).is_dir() && get_path_to_assets_hash().is_file()) {
             tracing::debug!("Removing broken assets...");
@@ -164,7 +162,7 @@ async fn app() -> Result<bool> {
         session: Arc::new(DashMap::new()),
         subscribes: Arc::new(DashMap::new()),
         figura_versions: Arc::new(RwLock::new(None)),
-        config,
+        config: Arc::new(RwLock::new(config.clone())),
     };
 
     // Automatic update of configuration/ban list while the server is running
@@ -175,7 +173,7 @@ async fn app() -> Result<bool> {
         Arc::clone(&state.config)
     ));
     // Blacklist auto update
-    if state.config.read().await.mc_folder.exists() {
+    if config.mc_folder.exists() {
         tokio::spawn(update_bans_from_minecraft(
             state.config.read().await.mc_folder.clone(),
             Arc::clone(&state.user_manager),
@@ -200,8 +198,19 @@ async fn app() -> Result<bool> {
         .nest("/api", api)
         .route("/api/", get(check_auth))
         .route("/ws", get(ws))
-        .with_state(state)
-        .layer(TraceLayer::new_for_http().on_request(()))
+        .layer(TraceLayer::new_for_http()
+            // .on_request(|request: &axum::http::Request<_>, _span: &tracing::Span| {
+            //     // only for developing purposes
+            //     tracing::trace!(headers = ?request.headers(), "started processing request");
+            // })
+            .on_response(|response: &axum::http::Response<_>, latency: std::time::Duration, _span: &tracing::Span| {
+                tracing::trace!(latency = ?latency, status = ?response.status(), "finished processing request");
+            })
+            .on_request(())
+        )
+        .layer(axum::middleware::from_fn(track_metrics))
+        .merge(metrics::metrics_router(config.metrics_enabled))
+        .with_state(state) 
         .route("/health", get(|| async { "ok" }));
 
     let listener = tokio::net::TcpListener::bind(listen).await?;

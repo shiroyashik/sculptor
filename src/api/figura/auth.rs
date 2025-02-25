@@ -1,7 +1,7 @@
-use axum::{debug_handler, extract::{Query, State}, response::{IntoResponse, Response}, routing::get, Router};
-use reqwest::StatusCode;
+use axum::{extract::{Query, State}, http::HeaderMap, response::{IntoResponse, Response}, routing::get, Router};
+use reqwest::{header::USER_AGENT, StatusCode};
 use ring::digest::{self, digest};
-use tracing::{error, info};
+use tracing::{error, info, instrument};
 
 use crate::{auth::{has_joined, Userinfo}, utils::rand, AppState};
 use super::types::auth::*;
@@ -12,7 +12,6 @@ pub fn router() -> Router<AppState> {
         .route("/verify", get(verify))
 }
 
-#[debug_handler]
 async fn id(
     // First stage of authentication
     Query(query): Query<Id>,
@@ -25,10 +24,11 @@ async fn id(
     server_id
 }
 
-#[debug_handler]
+#[instrument(skip_all)]
 async fn verify(
     // Second stage of authentication
     Query(query): Query<Verify>,
+    header: HeaderMap,
     State(state): State<AppState>,
 ) -> Response {
     let server_id = query.id.clone();
@@ -47,17 +47,23 @@ async fn verify(
     if let Some((uuid, auth_provider)) = userinfo {
         let umanager = state.user_manager;
         if umanager.is_banned(&uuid) {
-            info!("[Authentication] {nickname} tried to log in, but was banned");
+            info!("{nickname} tried to log in, but was banned");
             return (StatusCode::BAD_REQUEST, "You're banned!".to_string()).into_response();
         }
-        info!("[Authentication] {nickname} logged in using {}", auth_provider.name);
-        let userinfo = Userinfo {
+        let mut userinfo = Userinfo {
             nickname,
             uuid,
             token: Some(server_id.clone()),
             auth_provider,
             ..Default::default()
         };
+        if let Some(agent) = header.get(USER_AGENT) {
+            if let Ok(agent) = agent.to_str() {
+                userinfo.version = agent.to_string();
+            }
+        }
+        info!("{} logged in using {} with {}", userinfo.nickname, userinfo.auth_provider.name, userinfo.version);
+
         match umanager.insert(uuid, server_id.clone(), userinfo.clone()) {
             Ok(_) => {},
             Err(_) => {
@@ -70,7 +76,7 @@ async fn verify(
         }
         (StatusCode::OK, server_id.to_string()).into_response()
     } else {
-        info!("[Authentication] failed to verify {nickname}");
+        info!("failed to verify {nickname}");
         (StatusCode::BAD_REQUEST, "failed to verify".to_string()).into_response()
     }
 }

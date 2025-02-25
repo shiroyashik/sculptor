@@ -15,6 +15,7 @@ pub async fn initial(
     ws.on_upgrade(|socket| handle_socket(socket, state))
 }
 
+#[instrument(skip_all)]
 async fn handle_socket(mut ws: WebSocket, state: AppState) {
     // Trying authenticate & get user data or dropping connection
     match authenticate(&mut ws, &state).await {
@@ -44,7 +45,7 @@ async fn handle_socket(mut ws: WebSocket, state: AppState) {
 
             // Starting main worker
             if let Err(kind) = main_worker(&mut session, &mut ws, &state).await {
-                tracing::error!("[WebSocket] Main worker halted due to {}.",  kind)
+                tracing::info!(error = %kind, nickname = %session.user.nickname, "Main worker exited");
             }
 
             for (_, handle) in session.sub_workers_aborthandles {
@@ -56,7 +57,7 @@ async fn handle_socket(mut ws: WebSocket, state: AppState) {
             state.user_manager.remove(&user.uuid);
         },
         Err(kind) => {
-            tracing::info!("[WebSocket] Can't authenticate: {}", kind);
+            tracing::info!(error = %kind, "Can't authenticate");
         }
     }
 
@@ -64,7 +65,7 @@ async fn handle_socket(mut ws: WebSocket, state: AppState) {
     if let Err(kind) = ws.send(Message::Close(None)).await { tracing::trace!("[WebSocket] Closing fault: {}", kind) }
 }
 
-#[instrument(skip_all, fields(nickname = %session.user.nickname))]
+#[instrument(skip_all, parent = None, fields(nickname = %session.user.nickname))]
 async fn main_worker(session: &mut WSSession, ws: &mut WebSocket, state: &AppState) -> anyhow::Result<()> {
     tracing::debug!("WebSocket control for {} is transferred to the main worker", session.user.nickname);
     loop {

@@ -85,6 +85,18 @@ impl From<S2CMessage> for Vec<u8> {
         }
     }
 }
+impl S2CMessage {
+    pub fn name(&self) -> &'static str {
+        match self {
+            S2CMessage::Auth => "s2c>auth",
+            S2CMessage::Ping(_, _, _, _) => "s2c>ping",
+            S2CMessage::Event(_) => "s2c>event",
+            S2CMessage::Toast(_, _, _) => "s2c>toast",
+            S2CMessage::Chat(_) => "s2c>chat",
+            S2CMessage::Notice(_) => "s2c>notice",
+        }
+    }
+}
 
 // impl<'a> S2CMessage<'a> {
 //     pub fn to_array(&self) -> Box<[u8]> {

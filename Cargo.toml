@@ -2,7 +2,7 @@
 name = "sculptor"
 authors = ["Shiroyashik <shiroyashik@shsr.ru>"]
 version = "0.4.1-dev"
-edition = "2021"
+edition = "2024"
 publish = false
 
 [dependencies]
@@ -31,7 +31,6 @@ semver = "1.0"
 walkdir = "2.5"
 indexmap = { version = "2.6", features = ["serde"] }
 zip = "2.2"
-lazy_static = "1.5"
 notify = "8.0"
 
 # Crypto
@@ -42,6 +41,7 @@ rand = "0.9"
 axum = { version = "0.8", features = ["ws", "macros", "http2"] }
 tower-http = { version = "0.6", features = ["trace"] }
 tokio = { version = "1.41", features = ["full"] }
+prometheus = { version = "0.13.4", features = ["process"] }
 
 [dev-dependencies]
 cross = "0.2.5"

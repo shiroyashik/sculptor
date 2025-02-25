@@ -89,6 +89,16 @@ impl From<C2SMessage> for Vec<u8> {
         a
     }
 }
+impl C2SMessage {
+    pub fn name(&self) -> &'static str {
+        match self {
+            C2SMessage::Token(_) => "c2s>token",
+            C2SMessage::Ping(_, _, _) => "c2s>ping",
+            C2SMessage::Sub(_) => "c2s>sub",
+            C2SMessage::Unsub(_) => "c2s>unsub",
+        }
+    }
+}
 
 // impl<'a> C2SMessage<'a> {
 //     pub fn to_array(&self) -> Box<[u8]> {

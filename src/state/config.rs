@@ -10,6 +10,8 @@ use crate::auth::{default_authproviders, AuthProviders, Userinfo};
 #[serde(rename_all = "camelCase")]
 pub struct Config {
     pub listen: String,
+    #[serde(default)]
+    pub metrics_enabled: bool,
     pub token: Option<String>,
     pub assets_updater_enabled: bool,
     pub motd: CMotd,

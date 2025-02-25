@@ -4,8 +4,12 @@ listen = "0.0.0.0:6665"
 ## Don't touch if you don't know what you're doing
 # token = "<random symbols>"
 
+## Enable Prometheus metrics
+# metricsEnabled = true
+
 ## Path to minecraft server folder
 ## Sculptor try to use ban list from it
+## on Windows use double slash: "C:\\Servers\\1.20.1"
 # mcFolder = "~/minecraft_server"
 
 ## Can't work without at least one provider!
