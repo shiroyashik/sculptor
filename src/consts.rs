@@ -15,7 +15,7 @@ pub const TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
 
 // Figura update checker
 pub const FIGURA_RELEASES_URL: &str = "https://api.github.com/repos/figuramc/figura/releases";
-pub const FIGURA_DEFAULT_VERSION: &str = "0.1.4";
+pub const FIGURA_DEFAULT_VERSION: &str = "0.1.5";
 
 // Figura Assets
 pub const FIGURA_ASSETS_ZIP_URL: &str = "https://github.com/FiguraMC/Assets/archive/refs/heads/main.zip";

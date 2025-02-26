@@ -105,6 +105,13 @@ async fn main() -> Result<()> {
         },
     }
 
+    // Creating avatars folder
+    let path = PathBuf::from(&*AVATARS_VAR);
+    if !path.exists() {
+        fs::create_dir_all(path).await.expect("Can't create avatars folder!");
+        tracing::info!("Created avatars directory");
+    }
+
     // 4. Starting an app() that starts to serve. If app() returns true, the sculptor will be restarted. TODO: for future
     loop {
         if !app().await? {
@@ -116,15 +123,6 @@ async fn main() -> Result<()> {
 }
 
 async fn app() -> Result<bool> {
-    // Preparing for launch
-    {
-        let path = PathBuf::from(&*AVATARS_VAR);
-        if !path.exists() {
-            fs::create_dir_all(path).await.expect("Can't create avatars folder!");
-            tracing::info!("Created avatars directory");
-        }
-    }
-
     // Config
     let config = Config::parse(CONFIG_VAR.clone().into());
     let listen = config.listen.clone();
@@ -198,6 +196,8 @@ async fn app() -> Result<bool> {
         .nest("/api", api)
         .route("/api/", get(check_auth))
         .route("/ws", get(ws))
+        .merge(metrics::metrics_router(config.metrics_enabled))
+        .with_state(state) 
         .layer(TraceLayer::new_for_http()
             // .on_request(|request: &axum::http::Request<_>, _span: &tracing::Span| {
             //     // only for developing purposes
@@ -209,8 +209,6 @@ async fn app() -> Result<bool> {
             .on_request(())
         )
         .layer(axum::middleware::from_fn(track_metrics))
-        .merge(metrics::metrics_router(config.metrics_enabled))
-        .with_state(state) 
         .route("/health", get(|| async { "ok" }));
 
     let listener = tokio::net::TcpListener::bind(listen).await?;

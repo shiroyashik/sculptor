@@ -15,7 +15,6 @@ pub async fn initial(
     ws.on_upgrade(|socket| handle_socket(socket, state))
 }
 
-#[instrument(skip_all)]
 async fn handle_socket(mut ws: WebSocket, state: AppState) {
     // Trying authenticate & get user data or dropping connection
     match authenticate(&mut ws, &state).await {
@@ -65,7 +64,7 @@ async fn handle_socket(mut ws: WebSocket, state: AppState) {
     if let Err(kind) = ws.send(Message::Close(None)).await { tracing::trace!("[WebSocket] Closing fault: {}", kind) }
 }
 
-#[instrument(skip_all, parent = None, fields(nickname = %session.user.nickname))]
+#[instrument(skip_all, fields(nickname = %session.user.nickname))]
 async fn main_worker(session: &mut WSSession, ws: &mut WebSocket, state: &AppState) -> anyhow::Result<()> {
     tracing::debug!("WebSocket control for {} is transferred to the main worker", session.user.nickname);
     loop {

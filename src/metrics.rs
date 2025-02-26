@@ -22,7 +22,7 @@ async fn metrics(State(state): State<AppState>) -> String {
         let mut metric = prometheus::proto::Metric::default();
         metric.set_gauge(prometheus::proto::Gauge::default());
         metric.mut_gauge().set_value(state.session.len() as f64);
-        create_mf("players_count".to_string(), "Number of players".to_string(), MetricType::GAUGE, metric)
+        create_mf("sculptor_players_count".to_string(), "Number of players".to_string(), MetricType::GAUGE, metric)
     };
 
     metric_families.push(players);
@@ -58,14 +58,14 @@ pub async fn track_metrics(req: Request<Body>, next: Next) -> Result<Response<Bo
     Ok(response)
 }
 
-pub static PINGS_ERROR: LazyLock<prometheus::IntCounter> = LazyLock::new(|| {
-    register_int_counter!("pings_error", "Number of ping decoding errors").unwrap()
-});
-
 pub static REQUESTS: LazyLock<prometheus::HistogramVec> = LazyLock::new(|| {
-    register_histogram_vec!("requests_count", "Number of requests", &["uri", "code"], vec![0.025, 0.250, 0.500]).unwrap()
+    register_histogram_vec!("sculptor_requests_count", "Number of requests", &["uri", "code"], vec![0.025, 0.250, 0.500]).unwrap()
 });
 
 pub static PINGS: LazyLock<prometheus::HistogramVec> = LazyLock::new(|| {
-    register_histogram_vec!("pings_count", "Number of pings", &["type"], vec![0.000003, 0.00002, 0.0002]).unwrap()
+    register_histogram_vec!("sculptor_pings_count", "Number of pings", &["type"], vec![0.000003, 0.00002, 0.0002]).unwrap()
+});
+
+pub static PINGS_ERROR: LazyLock<prometheus::IntCounter> = LazyLock::new(|| {
+    register_int_counter!("sculptor_pings_error", "Number of ping decoding errors").unwrap()
 });
