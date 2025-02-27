@@ -3,7 +3,12 @@ use anyhow::Result;
 use axum::{
     extract::DefaultBodyLimit, routing::{delete, get, post, put}, Router
 };
+use axum_otel_metrics::HttpMetricsLayerBuilder;
+use axum_tracing_opentelemetry::middleware::{OtelAxumLayer, OtelInResponseLayer};
 use dashmap::DashMap;
+use opentelemetry::{global, trace::TracerProvider};
+use opentelemetry_sdk::trace::SdkTracerProvider;
+use tracing_opentelemetry::OpenTelemetryLayer;
 use tracing_panic::panic_hook;
 use tracing_subscriber::{fmt::{self, time::ChronoLocal}, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 use std::{env::var, path::PathBuf, sync::{Arc, LazyLock}};
@@ -62,6 +67,34 @@ async fn main() -> Result<()> {
     let file_appender = tracing_appender::rolling::never(&*LOGS_VAR, get_log_file(&LOGS_VAR));
     let timer = ChronoLocal::new(String::from("%Y-%m-%dT%H:%M:%S%.3f%:z"));
 
+    // FIXME: METRICS
+    let exporter = opentelemetry_prometheus::exporter()
+        .with_registry(prometheus::default_registry().clone())
+        .build()
+        .unwrap();
+
+    let provider = opentelemetry_sdk::metrics::SdkMeterProvider::builder()
+        .with_reader(exporter)
+        .build();
+
+    // TODO: ensure defer run `provider.shutdown()?;`
+
+    global::set_meter_provider(provider.clone());
+    // FIXME: EOF
+    // FIXME: TRACING
+    let exporter = opentelemetry_otlp::SpanExporter::builder()
+        .with_http()
+        .build()
+        .unwrap();
+
+    let trace_provider = SdkTracerProvider::builder()
+        .with_batch_exporter(exporter)
+        .build();
+
+    // global::set_tracer_provider(trace_provider.clone());
+    let tracer = trace_provider.tracer("tracing-otel-subscriber");
+    // FIXME: EOF
+
     let file_layer = fmt::layer()
         .with_ansi(false) // Disable ANSI colors for file logs
         .with_timer(timer.clone())
@@ -80,6 +113,7 @@ async fn main() -> Result<()> {
         .with(EnvFilter::from(&*LOGGER_VAR))
         .with(file_layer)
         .with(terminal_layer)
+        .with(OpenTelemetryLayer::new(tracer))
         .init();
 
     // std::panic::set_hook(Box::new(panic_hook));
@@ -179,6 +213,9 @@ async fn app() -> Result<bool> {
         ));
     }
 
+    let metrics = HttpMetricsLayerBuilder::new()
+        .build();
+
     let api = Router::new()
         .nest("//auth", api_auth::router()) // => /api//auth ¯\_(ツ)_/¯
         .nest("//assets", api_assets::router())
@@ -196,7 +233,14 @@ async fn app() -> Result<bool> {
         .nest("/api", api)
         .route("/api/", get(check_auth))
         .route("/ws", get(ws))
-        .merge(metrics::metrics_router(config.metrics_enabled))
+        // .merge(metrics::metrics_router(config.metrics_enabled))
+        .route("/metrics", get(|| async {
+            let mut buffer = Vec::new();
+            let encoder = prometheus::TextEncoder::new();
+            prometheus::Encoder::encode(&encoder, &prometheus::gather(), &mut buffer).unwrap();
+            // return metrics
+            String::from_utf8(buffer).unwrap()
+        }))
         .with_state(state) 
         .layer(TraceLayer::new_for_http()
             // .on_request(|request: &axum::http::Request<_>, _span: &tracing::Span| {
@@ -208,7 +252,10 @@ async fn app() -> Result<bool> {
             })
             .on_request(())
         )
-        .layer(axum::middleware::from_fn(track_metrics))
+        .layer(OtelInResponseLayer::default())
+        .layer(OtelAxumLayer::default())
+        .layer(metrics)
+        // .layer(axum::middleware::from_fn(track_metrics))
         .route("/health", get(|| async { "ok" }));
 
     let listener = tokio::net::TcpListener::bind(listen).await?;
