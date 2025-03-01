@@ -43,8 +43,10 @@ fn create_mf(name: String, help: String, field_type: MetricType, metric: Metric)
 }
 
 pub async fn track_metrics(req: Request<Body>, next: Next) -> Result<Response<Body>, StatusCode> {
+    let method = req.method().to_string();
+    let route = http_route(&req).to_string();
+
     let start = Instant::now();
-    let uri = req.uri().path().to_string();
 
     // Call the next middleware or handler
     let response = next.run(req).await;
@@ -52,18 +54,26 @@ pub async fn track_metrics(req: Request<Body>, next: Next) -> Result<Response<Bo
     let latency = start.elapsed().as_secs_f64();
 
     REQUESTS
-        .with_label_values(&[&uri, response.status().as_str()])
+        .with_label_values(&[&method, &route, response.status().as_str()])
         .observe(latency);
 
     Ok(response)
 }
 
+// https://github.com/davidB/tracing-opentelemetry-instrumentation-sdk/blob/main/axum-tracing-opentelemetry/src/middleware/trace_extractor.rs#L177
+#[inline]
+fn http_route<B>(req: &Request<B>) -> &str {
+    req.extensions()
+        .get::<axum::extract::MatchedPath>()
+        .map_or_else(|| "", |mp| mp.as_str())
+}
+
 pub static REQUESTS: LazyLock<prometheus::HistogramVec> = LazyLock::new(|| {
-    register_histogram_vec!("sculptor_requests_count", "Number of requests", &["uri", "code"], vec![0.025, 0.250, 0.500]).unwrap()
+    register_histogram_vec!("sculptor_requests_count", "Number of requests", &["method", "uri", "code"], vec![0.025, 0.250, 0.500]).unwrap()
 });
 
 pub static PINGS: LazyLock<prometheus::HistogramVec> = LazyLock::new(|| {
-    register_histogram_vec!("sculptor_pings_count", "Number of pings", &["type"], vec![0.000003, 0.00002, 0.0002]).unwrap()
+    register_histogram_vec!("sculptor_pings_count", "Number of pings", &["type"], vec![0.000001, 0.00001, 0.0001]).unwrap()
 });
 
 pub static PINGS_ERROR: LazyLock<prometheus::IntCounter> = LazyLock::new(|| {

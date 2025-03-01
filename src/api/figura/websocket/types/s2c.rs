@@ -88,12 +88,12 @@ impl From<S2CMessage> for Vec<u8> {
 impl S2CMessage {
     pub fn name(&self) -> &'static str {
         match self {
-            S2CMessage::Auth => "s2c>auth",
-            S2CMessage::Ping(_, _, _, _) => "s2c>ping",
-            S2CMessage::Event(_) => "s2c>event",
-            S2CMessage::Toast(_, _, _) => "s2c>toast",
-            S2CMessage::Chat(_) => "s2c>chat",
-            S2CMessage::Notice(_) => "s2c>notice",
+            S2CMessage::Auth => "S2C;AUTH",
+            S2CMessage::Ping(_, _, _, _) => "S2C;PING",
+            S2CMessage::Event(_) => "S2C;EVENT",
+            S2CMessage::Toast(_, _, _) => "S2C;TOAST",
+            S2CMessage::Chat(_) => "S2C;CHAT",
+            S2CMessage::Notice(_) => "S2C;NOTICE",
         }
     }
 }

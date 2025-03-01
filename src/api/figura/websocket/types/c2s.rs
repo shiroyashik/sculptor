@@ -92,10 +92,10 @@ impl From<C2SMessage> for Vec<u8> {
 impl C2SMessage {
     pub fn name(&self) -> &'static str {
         match self {
-            C2SMessage::Token(_) => "c2s>token",
-            C2SMessage::Ping(_, _, _) => "c2s>ping",
-            C2SMessage::Sub(_) => "c2s>sub",
-            C2SMessage::Unsub(_) => "c2s>unsub",
+            C2SMessage::Token(_) => "C2S;TOKEN",
+            C2SMessage::Ping(_, _, _) => "C2S;PING",
+            C2SMessage::Sub(_) => "C2S;SUB",
+            C2SMessage::Unsub(_) => "C2S;UNSUB",
         }
     }
 }
