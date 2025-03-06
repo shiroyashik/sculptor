@@ -69,11 +69,11 @@ fn http_route<B>(req: &Request<B>) -> &str {
 }
 
 pub static REQUESTS: LazyLock<prometheus::HistogramVec> = LazyLock::new(|| {
-    register_histogram_vec!("sculptor_requests_count", "Number of requests", &["method", "uri", "code"], vec![0.025, 0.250, 0.500]).unwrap()
+    register_histogram_vec!("sculptor_requests", "Number of requests", &["method", "route", "code"], vec![0.025, 0.250, 0.500]).unwrap()
 });
 
 pub static PINGS: LazyLock<prometheus::HistogramVec> = LazyLock::new(|| {
-    register_histogram_vec!("sculptor_pings_count", "Number of pings", &["type"], vec![0.000001, 0.00001, 0.0001]).unwrap()
+    register_histogram_vec!("sculptor_pings", "Number of pings", &["type"], vec![0.000001, 0.00001, 0.0001]).unwrap()
 });
 
 pub static PINGS_ERROR: LazyLock<prometheus::IntCounter> = LazyLock::new(|| {

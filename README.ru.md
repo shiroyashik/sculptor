@@ -2,8 +2,8 @@
  * Русский
 
 # The Sculptor
-[![Push Dev](https://github.com/shiroyashik/sculptor/actions/workflows/dev-release.yml/badge.svg?branch=dev)](https://github.com/shiroyashik/sculptor/actions/workflows/dev-release.yml)
-![maintenance-status](https://img.shields.io/badge/maintenance-actively--developed-brightgreen.svg)
+[![Push Dev](https://github.com/shiroyashik/sculptor/actions/workflows/dev-release.yml/badge.svg?branch=master)](https://github.com/shiroyashik/sculptor/actions/workflows/dev-release.yml)
+[![No Maintenance Intended](http://unmaintained.tech/badge.svg)](http://unmaintained.tech/)
 
 Неофициальный бэкенд для Minecraft мода [Figura](https://github.com/FiguraMC/Figura).
 
