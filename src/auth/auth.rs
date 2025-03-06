@@ -295,6 +295,9 @@ pub async fn check_auth(
                         Err(ApiError::Unauthorized)
                     } else {
                         debug!(nickname = user.nickname, status = "ok", "Token verified successfully");
+                        if let Some(session) = state.session.get(&user.uuid) {
+                            let _ = session.send(crate::api::figura::SessionMessage::UpdateKeepAlive).await;
+                        };
                         Ok("ok")
                     }
                 }

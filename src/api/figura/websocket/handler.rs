@@ -1,7 +1,9 @@
+use std::time::Duration;
+
 use anyhow::bail;
 use axum::{body::Bytes, extract::{ws::{Message, WebSocket}, State}};
 use dashmap::DashMap;
-use tokio::sync::{broadcast, mpsc};
+use tokio::{sync::{broadcast, mpsc}, time::{sleep_until, Instant}};
 use tracing::instrument;
 
 use crate::{auth::Userinfo, AppState};
@@ -67,6 +69,7 @@ async fn handle_socket(mut ws: WebSocket, state: AppState) {
 #[instrument(skip_all, fields(nickname = %session.user.nickname))]
 async fn main_worker(session: &mut WSSession, ws: &mut WebSocket, state: &AppState) -> anyhow::Result<()> {
     tracing::debug!("WebSocket control for {} is transferred to the main worker", session.user.nickname);
+    let mut keep_alive = Instant::now() + Duration::from_secs(360); // 5 minutes and one more just in case + Don't forget about UpdateKeepAlive
     loop {
         tokio::select! {
             external_msg = ws.recv_and_decode() => {
@@ -137,7 +140,15 @@ async fn main_worker(session: &mut WSSession, ws: &mut WebSocket, state: &AppSta
                             );
                         bail!("{} banned!", session.user.nickname)
                     },
+                    SessionMessage::UpdateKeepAlive => {
+                        tracing::trace!(keep_alive = ?keep_alive.saturating_duration_since(Instant::now()), "UpdateKeepAlive");
+                        keep_alive = Instant::now() + Duration::from_secs(360);
+                    }
                 }
+            }
+            _ = sleep_until(keep_alive) => {
+                let _ = ws.send(Message::Close(Some(axum::extract::ws::CloseFrame { code: 4000, reason: "Re-auth".into() }))).await;
+                bail!("session expired");
             }
         }
     }

@@ -12,4 +12,5 @@ pub struct WSSession {
 pub enum SessionMessage {
     Ping(Vec<u8>),
     Banned,
+    UpdateKeepAlive,
 }
