@@ -182,6 +182,8 @@ async fn app() -> Result<bool> {
     let api = Router::new()
         .nest("//auth", api_auth::router()) // => /api//auth ¯\_(ツ)_/¯
         .nest("//assets", api_assets::router())
+        .nest("/auth", api_auth::router())
+        .nest("/assets", api_assets::router())
         .nest("/v1", api::sculptor::router(limit))
         .route("/limits", get(api_info::limits))
         .route("/version", get(api_info::version))
