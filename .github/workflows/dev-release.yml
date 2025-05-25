@@ -39,6 +39,9 @@ jobs:
         with:
           push: true
           # context: .
+          platforms: |
+            linux/amd64
+            linux/arm64
           tags: ghcr.io/${{ github.repository_owner }}/sculptor:${{ steps.short_sha.outputs.sha }}
           cache-from: type=registry,ref=ghcr.io/${{ github.repository_owner }}/sculptor:buildcache
           cache-to: type=registry,ref=ghcr.io/${{ github.repository_owner }}/sculptor:buildcache,mode=max

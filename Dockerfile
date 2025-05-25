@@ -1,6 +1,6 @@
 ## Chef
 # FROM clux/muslrust:stable AS chef
-FROM rust:1.85-alpine3.21 AS chef
+FROM rust:1.87-alpine3.21 AS chef
 USER root
 RUN apk add --no-cache musl-dev libressl-dev
 RUN cargo install cargo-chef
