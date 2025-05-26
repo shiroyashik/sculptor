@@ -34,6 +34,7 @@ zip = "2.2"
 notify = "8.0"
 
 # Crypto
+openssl = { version = "0.10", features = ["vendored"] }
 ring = "0.17"
 rand = "0.9"
 
@@ -42,12 +43,3 @@ axum = { version = "0.8", features = ["ws", "macros", "http2"] }
 tower-http = { version = "0.6", features = ["trace"] }
 tokio = { version = "1.41", features = ["full"] }
 prometheus = { version = "0.13.4", features = ["process"] }
-
-[dev-dependencies]
-cross = "0.2.5"
-
-[workspace.metadata.cross.target.x86_64-unknown-linux-gnu]
-pre-build = [
-    "dpkg --add-architecture $CROSS_DEB_ARCH",
-    "apt-get update && apt-get --assume-yes install libssl-dev:$CROSS_DEB_ARCH"
-]
