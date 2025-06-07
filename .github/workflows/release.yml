@@ -1,129 +1,77 @@
-# Stolen from https://github.com/mrjackwills/oxker :D
-name: Release CI
+name: Release
+run-name: Release ${{ github.ref_name }}
+
 on:
   push:
     tags:
-      - "v[0-9]+.[0-9]+.[0-9]+"
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+  packages: write
+
+env:
+  RUST_VERSION: 1.87
+  ZIG_VERSION: 0.14.1
+  ALPINE_VERSION: 3.22
+  CARGO_TERM_COLOR: always
+  CARGO_BUILD_TARGETS: x86_64-unknown-linux-gnu,aarch64-unknown-linux-gnu,x86_64-pc-windows-gnu
 
 jobs:
-  #################################################
-  ## Cross platform binary build for release page #
-  #################################################
-
-  cross_platform_build:
-    strategy:
-      matrix:
-        include:
-          - target: x86_64-unknown-linux-gnu
-            output_name: linux_x86_64.tar.gz
-
-          - target: x86_64-pc-windows-gnu
-            output_name: windows_x86_64.zip
-
+  build-binary:
+    name: Build binaries and upload them as artifacts
     runs-on: ubuntu-latest
+    env:
+      OUTPUT_DIR: target/output
+    outputs:
+      binary-artifact-id: ${{ steps.artifact-upload.outputs.artifact-id }}
     steps:
-      - name: Checkout code
+
+      - name: Checkout the code
         uses: actions/checkout@v4
 
-      # Install stable rust, and associated tools
-      - name: Install rust
-        uses: dtolnay/rust-toolchain@stable
+      - name: Use build cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          prefix-key: "cargo-v0"
+          cache-all-crates: true
 
-      # Install cross-rs
-      - name: Install cross
-        run: cargo install cross --git https://github.com/cross-rs/cross
+      - name: Set up Rust toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+          targets: ${{ env.CARGO_BUILD_TARGETS }}
+          # components: clippy, rustfmt
 
-      # Build binary
-      - name: Build
-        run: CROSS_NO_WARNINGS=0 cross build --target ${{ matrix.target }} --release
-      
-      # Create necessary files and directories
-      - name: Create necessary files
-        run: |
-          mkdir -p target/output
-          cp Config.example.toml target/output/Config.toml
+      - name: Install the build dependencies
+        uses: ./.github/actions/dependencies
+        with:
+          zig-version: ${{ env.ZIG_VERSION }}
 
-      # Compress the output | Windows
-      - name: Compress | windows
-        if: matrix.target == 'x86_64-pc-windows-gnu'
-        run: |
-          cp target/${{ matrix.target }}/release/sculptor.exe target/output
-          (cd target/output; zip "../../sculptor_${{ matrix.output_name }}" ./*)
 
-      # Compress the output | Linux
-      - name: Compress | linux
-        if: matrix.target != 'x86_64-pc-windows-gnu'
-        run: |
-          cp target/${{ matrix.target }}/release/sculptor target/output
-          tar -czvf "./sculptor_${{ matrix.output_name }}" -C "target/output" .
+      - name: Build the project
+        uses: ./.github/actions/build
+        with:
+          targets: ${{ env.CARGO_BUILD_TARGETS }}
+          lint: false
 
-      # Upload output for release page
-      - name: Upload Artifacts
+      - name: Package the artifacts
+        run: ./.github/scripts/package-artifacts.sh
+
+      - name: Upload artifact
+        id: artifact-upload
         uses: actions/upload-artifact@v4
         with:
-          if-no-files-found: error
-          name: ${{ matrix.target }}
-          path: sculptor_${{ matrix.output_name }}
-          retention-days: 1
+          path: ${{ env.OUTPUT_DIR }}/*
+          name: binaries-${{ github.ref_name }}
 
-  ###################
-  ## Create release #
-  ###################
-
-  create_release:
-    needs: [cross_platform_build]
+  build-image:
+    name: Build image and push to GHCR
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
+
+      - name: Checkout the code
         uses: actions/checkout@v4
-
-      - name: Setup | Artifacts
-        uses: actions/download-artifact@v4
-
-      - name: Update Release
-        uses: ncipollo/release-action@v1
-        with:
-          makeLatest: true
-          name: ${{ github.ref_name }}
-          tag: ${{ github.ref }}
-          bodyFile: ".github/release-body.md"
-          token: ${{ secrets.GITHUB_TOKEN }}
-          artifacts: |
-            **/sculptor_*.zip
-            **/sculptor_*.tar.gz
-  ##################
-  ## Cargo publish #
-  ##################
-
-  # cargo_publish:
-  #   needs: [create_release]
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - name: Checkout
-  #       uses: actions/checkout@v4
-
-  #     - name: publish to crates.io
-  #       uses: katyo/publish-crates@v2
-  #       with:
-  #         registry-token: ${{ secrets.CRATES_IO_TOKEN }}
-
-  #########################################
-  ## Build images for Dockerhub & ghcr.io #
-  #########################################
-
-  image_build:
-    needs: [create_release]
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Login to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.repository_owner }}
-          password: ${{ secrets.GITHUB_TOKEN }}
 
       # - name: Login to DockerHub
       #   uses: docker/login-action@v3
@@ -131,15 +79,76 @@ jobs:
       #     username: ${{ secrets.DOCKERHUB_USERNAME }}
       #     password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - uses: docker/setup-buildx-action@v3
-        id: buildx
+      # - name: Login to GitHub Container Registry
+      #   uses: docker/login-action@v3
+      #   with:
+      #     registry: ghcr.io
+      #     username: ${{ github.repository_owner }}
+      #     password: ${{ secrets.GITHUB_TOKEN }}
+
+      # - name: Set up QEMU
+      #   uses: docker/setup-qemu-action@v3
+
+      - name: Set up buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
         with:
-          install: true
-      - name: Build for Dockerhub & ghcr.io
+          context: .
+          file: ./Dockerfile
+          build-args: |
+            ALPINE_VERSION
+            RUST_VERSION
+          platforms: linux/amd64,linux/arm64
+          # push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/sculptor:latest
+            ghcr.io/${{ github.repository_owner }}/sculptor:${{ github.ref_name }}
+          # If we were to push to DockerHub:
+          #   ${{ github.repository_owner }}/sculptor:latest
+          #   ${{ github.repository_owner }}/sculptor:${{ github.ref_name }}
+          provenance: false
+          sbom: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+        
+  create-release:
+    name: Create GitHub release
+    needs:
+      - build-binary
+      - build-image
+    runs-on: ubuntu-latest
+    steps:
+
+      - name: Checkout the code
+        uses: actions/checkout@v4
+        with:
+          fetch-tags: true
+          ref: ${{ github.ref }}
+
+      - name: Download the artifacts
+        uses: actions/download-artifact@v4
+        with:
+          artifact-ids: ${{ needs.build-binary.outputs.binary-artifact-id }}
+
+      - name: Debug tag information
+        shell: bash
         run: |
-          docker build --platform linux/amd64 \
-          -t ghcr.io/${{ github.repository_owner }}/sculptor:latest \
-          -t ghcr.io/${{ github.repository_owner }}/sculptor:${{ github.ref_name }} \
-          --provenance=false --sbom=false \
-          --push \
-          -f Dockerfile .
+          echo "Workflow triggered by GITHUB_REF_NAME: ${{ github.ref_name }}"
+          echo "--- Listing all local tags ---"
+          git tag -l
+          echo "--- Showing details for tag '${{ github.ref_name }}' ---"
+          git show ${{ github.ref_name }} || echo "Error: Tag '${{ github.ref_name }}' not found or 'git show' failed."
+          echo "--------------------------------"
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create ${{ github.ref_name }} \
+            --verify-tag \
+            --generate-notes \
+            --latest \
+            --draft \
+            binaries-${{ github.ref_name }}/*

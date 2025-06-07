@@ -1,0 +1,32 @@
+name: Install cargo-zigbuild
+description: Installs cargo-zigbuild and its dependencies
+
+inputs:
+  zig-version:
+    description: Version of Zig to install
+    default: 0.14.1
+
+runs:
+  using: composite
+  steps:
+
+    - name: Install Zig
+      shell: bash
+      run: |
+        ZIG_VERSION="${{ inputs.zig-version }}"
+        [ "$RUNNER_ARCH" == "X64" ] && ZIG_ARCH="x86_64" || ZIG_ARCH="aarch64"
+        wget -q "https://ziglang.org/download/${ZIG_VERSION}/zig-${ZIG_ARCH}-linux-${ZIG_VERSION}.tar.xz" \
+          -O /tmp/zig.tar.xz
+
+        sudo tar -xJf /tmp/zig.tar.xz -C / \
+          --transform='s|^[^/]+/zig$|usr/local/bin/zig|x' \
+          --transform='s|^[^/]+/lib|usr/local/lib/zig|x' \
+          --transform='s|^[^/]+/doc|usr/local/share/doc/zig|x' \
+          --transform='s|^[^/]+/LICENSE$|usr/local/share/doc/zig/copyright|x' \
+          --transform='s|^[^/]+/README.md$|usr/local/share/doc/zig/README.md|x' \
+          --wildcards \
+          "*/"{zig,lib,doc,LICENSE,README.md}
+
+    - name: Install cargo-zigbuild
+      shell: sh
+      run: cargo install cargo-zigbuild

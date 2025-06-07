@@ -1,12 +1,12 @@
-ARG ALPINE_VERSION="3.21"
-ARG RUST_VERSION="1.85"
+ARG ALPINE_VERSION=""
+ARG RUST_VERSION="1"
 ## Chef
+# defaults to rust:1-alpine
 FROM --platform=$BUILDPLATFORM rust:${RUST_VERSION}-alpine${ALPINE_VERSION} AS chef
 USER root
-RUN apk add --no-cache musl-dev libressl-dev zig perl make
-RUN cargo install --locked cargo-chef cargo-zigbuild
+RUN apk add --no-cache musl-dev cargo-zigbuild
+RUN cargo install --locked cargo-chef
 WORKDIR /build
-ENV PKG_CONFIG_SYSROOT_DIR=/
 
 ## Planner
 FROM chef AS planner
@@ -17,8 +17,8 @@ RUN cargo chef prepare --recipe-path recipe.json
 ## Builder
 FROM chef AS builder
 COPY --from=planner /build/recipe.json recipe.json
-# Map Docker's TARGETPLATFORM to Rust's target
-# and save the result to a .env file
+# Map Docker's TARGETPLATFORM to Rust's build
+# target and save the result to a .env file
 ARG TARGETPLATFORM
 RUN <<EOT
 case "${TARGETPLATFORM}" in
@@ -41,7 +41,7 @@ RUN . /tmp/builder.env && \
     ln -s "$PWD/target/$CARGO_BUILD_TARGET/release" /tmp/build-output
 
 ## Runtime
-FROM alpine:${ALPINE_VERSION} AS runtime
+FROM alpine:${ALPINE_VERSION:-latest} AS runtime
 WORKDIR /app
 COPY --from=builder /tmp/build-output/sculptor /app/sculptor
 

@@ -1,0 +1,48 @@
+name: Build project
+description: Builds the project for specified targets using cargo-zigbuild.
+
+inputs:
+  targets:
+    description: A comma-separated list of Rust targets.
+    default: x86_64-unknown-linux-gnu,aarch64-unknown-linux-gnu,x86_64-pc-windows-gnu
+  lint:
+    description: A boolean indicating if linting (cargo-fmt, clippy) should be run
+    default: true
+  test:
+    description: A boolean indicating if tests should be run
+    default: true
+
+runs:
+  using: composite
+  steps:
+
+    - name: Convert input targets to Bash array
+      shell: bash
+      run: |
+        readarray -d $'\0' -t targets < <(awk -F, '{ for (i = 1; i <= NF; i++) printf "--target\0%s\0", $i }' <<< "${{ inputs.targets }}")
+        declare -p targets > /tmp/targets.sh
+
+    - name: Check with cargo-fmt
+      if:  inputs.lint == true
+      shell: sh
+      run: cargo fmt -v --all -- --check
+
+    - name: Run Clippy
+      if:  inputs.lint == true
+      shell: bash
+      run: |
+        . /tmp/targets.sh
+        cargo-zigbuild clippy -v --all-targets "${targets[@]}" -- -D warnings
+
+    - name: Build with cargo-zigbuild
+      shell: bash
+      run: |
+        . /tmp/targets.sh
+        cargo-zigbuild build -v -r --bin sculptor "${targets[@]}"
+
+    - name: Test with cargo-zigbuild
+      shell: bash
+      if:  inputs.test == true
+      run: |
+        . /tmp/targets.sh
+        cargo-zigbuild test -v -r "${targets[@]}"

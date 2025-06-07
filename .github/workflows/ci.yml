@@ -1,0 +1,71 @@
+name: Continuous Integration
+
+on:
+  push:
+    branches: [ "master" ]
+    paths:
+      - src
+      - Cargo*
+      - Dockerfile
+  pull_request:
+    branches: [ "master" ]
+    paths:
+      - src
+      - Cargo*
+      - Dockerfile
+
+permissions:
+  contents: read
+
+env:
+  ZIG_VERSION: 0.14.1
+  CARGO_TERM_COLOR: always
+  CARGO_BUILD_TARGETS: x86_64-unknown-linux-gnu,aarch64-unknown-linux-gnu,x86_64-pc-windows-gnu
+
+jobs:
+  build:
+    name: Build, lint and test
+    runs-on: ubuntu-latest
+    env:
+      OUTPUT_DIR: target/output
+    strategy:
+      matrix:
+        toolchain:
+          - 1.87
+          # - stable
+          # - nightly
+    steps:
+
+      - name: Checkout the code
+        uses: actions/checkout@v4
+
+      - name: Use build cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          prefix-key: "cargo-v0"
+          cache-all-crates: true
+
+      - name: Set up Rust toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ matrix.toolchain }}
+          targets: ${{ env.CARGO_BUILD_TARGETS }}
+          components: clippy, rustfmt
+
+      - name: Install the build dependencies
+        uses: ./.github/actions/dependencies
+        with:
+          zig-version: ${{ env.ZIG_VERSION }}
+
+      - name: Build the project
+        uses: ./.github/actions/build
+        with:
+          targets: ${{ env.CARGO_BUILD_TARGETS }}
+      
+      - name: Package the artifacts
+        run: ./.github/scripts/package-artifacts.sh
+
+      - name: Upload the artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          path: ${{ env.OUTPUT_DIR }}/*
