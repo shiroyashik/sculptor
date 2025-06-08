@@ -56,9 +56,11 @@ jobs:
           targets: ${{ env.CARGO_BUILD_TARGETS }}
           lint: false
 
+      - name: Create output directory for artifacts
+        run: mkdir -p "$OUTPUT_DIR"
+
       - name: Package the artifacts
-        run: mkdir -p "$OUTPUT_DIR" && \
-          ./.github/scripts/package-artifacts.sh
+        run: ./.github/scripts/package-artifacts.sh 
 
       - name: Upload artifact
         id: artifact-upload
