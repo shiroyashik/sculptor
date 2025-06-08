@@ -23,9 +23,9 @@ runs:
       shell: bash
       run: |
         targets=()
-        while IFS=',' read -r target
+        while read -r target
         do targets+=("--target" "$target")
-        done <<< "${{ inputs.targets }}"
+        done < <(tr , '\n' <<<"${{ inputs.targets }}")
         declare -p targets > /tmp/targets.sh
 
     - name: Check with cargo-fmt
