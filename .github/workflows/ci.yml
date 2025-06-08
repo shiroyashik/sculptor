@@ -66,10 +66,12 @@ jobs:
         uses: ./.github/actions/build
         with:
           targets: ${{ env.CARGO_BUILD_TARGETS }}
-      
+
+      - name: Create output directory for artifacts
+        run: mkdir -p "$OUTPUT_DIR"
+
       - name: Package the artifacts
-        run: mkdir -p "$OUTPUT_DIR" && \
-          ./.github/scripts/package-artifacts.sh
+        run: ./.github/scripts/package-artifacts.sh 
 
       - name: Upload the artifacts
         uses: actions/upload-artifact@v4
