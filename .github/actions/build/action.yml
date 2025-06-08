@@ -17,9 +17,15 @@ runs:
   steps:
 
     - name: Convert input targets to Bash array
+      # read comma-separated list of targets, converts it to
+      # an array of arguments for cargo-zigbuild like this:
+      # [ "--target", "<target1>", "--target", "<target2>", ... ]
       shell: bash
       run: |
-        readarray -d $'\0' -t targets < <(awk -F, '{ for (i = 1; i <= NF; i++) printf "--target\0%s\0", $i }' <<< "${{ inputs.targets }}")
+        targets=()
+        while IFS=',' read -r target
+        do targets+=("--target" "$target")
+        done <<< "${{ inputs.targets }}"
         declare -p targets > /tmp/targets.sh
 
     - name: Check with cargo-fmt
@@ -27,7 +33,7 @@ runs:
       shell: sh
       run: cargo fmt -v --all -- --check
 
-    - name: Run Clippy
+    - name: Run Clippy with cargo-zigbuild
       if:  inputs.lint == true
       shell: bash
       run: |

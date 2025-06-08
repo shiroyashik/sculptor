@@ -12,6 +12,13 @@ runs:
 
     - name: Install Zig
       shell: bash
+      # the `--transform` options are used to install Zig in the /usr/local/:
+      # */zig -> /usr/local/bin/zig
+      # */lib/ -> /usr/local/lib/zig/
+      # the rest is not really necessary, but for consistency:
+      # */doc/ -> /usr/local/share/doc/zig/
+      # */LICENSE -> /usr/local/share/doc/zig/copyright
+      # */README.md -> /usr/local/share/doc/zig/README.md
       run: |
         ZIG_VERSION="${{ inputs.zig-version }}"
         [ "$RUNNER_ARCH" == "X64" ] && ZIG_ARCH="x86_64" || ZIG_ARCH="aarch64"

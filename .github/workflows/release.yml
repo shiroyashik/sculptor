@@ -41,6 +41,7 @@ jobs:
         with:
           toolchain: ${{ env.RUST_VERSION }}
           targets: ${{ env.CARGO_BUILD_TARGETS }}
+          # needed if we want to use linting in build action
           # components: clippy, rustfmt
 
       - name: Install the build dependencies
@@ -56,7 +57,8 @@ jobs:
           lint: false
 
       - name: Package the artifacts
-        run: ./.github/scripts/package-artifacts.sh
+        run: mkdir -p "$OUTPUT_DIR" && \
+          ./.github/scripts/package-artifacts.sh
 
       - name: Upload artifact
         id: artifact-upload
@@ -73,11 +75,13 @@ jobs:
       - name: Checkout the code
         uses: actions/checkout@v4
 
+      # if we wanted to push to DockerHub:
       # - name: Login to DockerHub
       #   uses: docker/login-action@v3
       #   with:
       #     username: ${{ secrets.DOCKERHUB_USERNAME }}
       #     password: ${{ secrets.DOCKERHUB_TOKEN }}
+      # also uncomment the tags parameter in the last step
 
       # - name: Login to GitHub Container Registry
       #   uses: docker/login-action@v3
@@ -105,7 +109,6 @@ jobs:
           tags: |
             ghcr.io/${{ github.repository_owner }}/sculptor:latest
             ghcr.io/${{ github.repository_owner }}/sculptor:${{ github.ref_name }}
-          # If we were to push to DockerHub:
           #   ${{ github.repository_owner }}/sculptor:latest
           #   ${{ github.repository_owner }}/sculptor:${{ github.ref_name }}
           provenance: false
@@ -131,16 +134,6 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           artifact-ids: ${{ needs.build-binary.outputs.binary-artifact-id }}
-
-      - name: Debug tag information
-        shell: bash
-        run: |
-          echo "Workflow triggered by GITHUB_REF_NAME: ${{ github.ref_name }}"
-          echo "--- Listing all local tags ---"
-          git tag -l
-          echo "--- Showing details for tag '${{ github.ref_name }}' ---"
-          git show ${{ github.ref_name }} || echo "Error: Tag '${{ github.ref_name }}' not found or 'git show' failed."
-          echo "--------------------------------"
 
       - name: Create release
         env:

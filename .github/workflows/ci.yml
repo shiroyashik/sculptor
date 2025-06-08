@@ -7,12 +7,16 @@ on:
       - src
       - Cargo*
       - Dockerfile
+      # this file
+      - .github/workflows/ci.yml
   pull_request:
     branches: [ "master" ]
     paths:
       - src
       - Cargo*
       - Dockerfile
+      # this file
+      - .github/workflows/ci.yml
 
 permissions:
   contents: read
@@ -28,6 +32,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       OUTPUT_DIR: target/output
+    # in case we wanted to test multiple toolchains:
     strategy:
       matrix:
         toolchain:
@@ -63,7 +68,8 @@ jobs:
           targets: ${{ env.CARGO_BUILD_TARGETS }}
       
       - name: Package the artifacts
-        run: ./.github/scripts/package-artifacts.sh
+        run: mkdir -p "$OUTPUT_DIR" && \
+          ./.github/scripts/package-artifacts.sh
 
       - name: Upload the artifacts
         uses: actions/upload-artifact@v4
