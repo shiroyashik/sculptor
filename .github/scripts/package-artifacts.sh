@@ -55,8 +55,7 @@ do
 	then
 		os="${BASH_REMATCH[3]}"
 		arch="${BASH_REMATCH[1]}"
-		declare -p BASH_REMATCH
-		echo compress-artifact "$build_dir" "$os" "$arch"
+		compress-artifact "$build_dir" "$os" "$arch"
 	else
 		echo "ERROR: Invalid target: $target" >&2
 		exit 1
