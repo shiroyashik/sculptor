@@ -19,9 +19,11 @@ async fn metrics(State(state): State<AppState>) -> String {
     
     // Add new custom metrics
     let players = {
+        let mut gauge = prometheus::proto::Gauge::default();
+        gauge.set_value(state.session.len() as f64);
+        
         let mut metric = prometheus::proto::Metric::default();
-        metric.set_gauge(prometheus::proto::Gauge::default());
-        metric.mut_gauge().set_value(state.session.len() as f64);
+        metric.set_gauge(gauge);
         create_mf("sculptor_players_count".to_string(), "Number of players".to_string(), MetricType::GAUGE, metric)
     };
 
@@ -54,7 +56,7 @@ pub async fn track_metrics(req: Request<Body>, next: Next) -> Result<Response<Bo
     let latency = start.elapsed().as_secs_f64();
 
     REQUESTS
-        .with_label_values(&[&method, &route, response.status().as_str()])
+        .with_label_values(&[&method, &route, &String::from(response.status().as_str())])
         .observe(latency);
 
     Ok(response)
