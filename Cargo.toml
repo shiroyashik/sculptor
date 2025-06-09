@@ -25,7 +25,7 @@ dashmap = { version = "6.0", features = ["serde"] }
 faster-hex = "0.10"
 uuid = { version = "1.11", features = ["serde"] }
 base64 = "0.22"
-reqwest = { version = "0.12", features = ["blocking", "json"] }
+reqwest = { version = "0.12", default-features = false, features = ["blocking", "json", "rustls-tls"] }
 dotenvy = "0.15"
 semver = "1.0"
 walkdir = "2.5"
@@ -42,12 +42,3 @@ axum = { version = "0.8", features = ["ws", "macros", "http2"] }
 tower-http = { version = "0.6", features = ["trace"] }
 tokio = { version = "1.41", features = ["full"] }
 prometheus = { version = "0.14", features = ["process"] }
-
-[dev-dependencies]
-cross = "0.2.5"
-
-[workspace.metadata.cross.target.x86_64-unknown-linux-gnu]
-pre-build = [
-    "dpkg --add-architecture $CROSS_DEB_ARCH",
-    "apt-get update && apt-get --assume-yes install libssl-dev:$CROSS_DEB_ARCH"
-]
