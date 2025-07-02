@@ -1,0 +1,19 @@
+name: Install dependencies
+description: Installs Zig and cargo-zigbuild
+
+inputs:
+  zig-version:
+    description: Version of Zig to install
+
+runs:
+  using: composite
+  steps:
+
+    - name: Install Zig
+      uses: mlugg/setup-zig@v2
+      with:
+        version: ${{ inputs.zig-version }}
+
+    - name: Install cargo-zigbuild
+      shell: sh
+      run: cargo install cargo-zigbuild
