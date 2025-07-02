@@ -5,12 +5,15 @@ inputs:
   targets:
     description: A comma-separated list of Rust targets.
     default: x86_64-unknown-linux-gnu,aarch64-unknown-linux-gnu,x86_64-pc-windows-gnu
+    required: true
   lint:
     description: A boolean indicating if linting (cargo-fmt, clippy) should be run
     default: true
+    required: true
   test:
     description: A boolean indicating if tests should be run
     default: true
+    required: true
 
 runs:
   using: composite
