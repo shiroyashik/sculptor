@@ -2,8 +2,7 @@
  * Русский
 
 # The Sculptor
-[![Push Dev](https://github.com/shiroyashik/sculptor/actions/workflows/dev-release.yml/badge.svg?branch=master)](https://github.com/shiroyashik/sculptor/actions/workflows/dev-release.yml)
-[![No Maintenance Intended](http://unmaintained.tech/badge.svg)](http://unmaintained.tech/)
+[![CI](https://github.com/shiroyashik/sculptor/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/shiroyashik/sculptor/actions/workflows/ci.yml)
 
 Неофициальный бэкенд для Minecraft мода [Figura](https://github.com/FiguraMC/Figura).
 
@@ -24,8 +23,6 @@
 > figura.shsr.ru
 
 На сервере включена аутентификация через: Mojang(Microsoft) и [Ely.By](https://ely.by/)
-
-По неконтролируемым мною причинам, сервер не доступен в некоторых странах.
 
 ## Запуск
 

@@ -3,8 +3,7 @@
 
 # The Sculptor
 
-[![Push Dev](https://github.com/shiroyashik/sculptor/actions/workflows/dev-release.yml/badge.svg?branch=master)](https://github.com/shiroyashik/sculptor/actions/workflows/dev-release.yml)
-[![No Maintenance Intended](http://unmaintained.tech/badge.svg)](http://unmaintained.tech/)
+[![CI](https://github.com/shiroyashik/sculptor/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/shiroyashik/sculptor/actions/workflows/ci.yml)
 
 Unofficial backend for the Minecraft mod [Figura](https://github.com/FiguraMC/Figura).
 
@@ -25,9 +24,6 @@ To connect, simply change **Figura Cloud IP** in Figura settings to the address 
 > figura.shsr.ru
 
 Authentication is enabled on the server via: Mojang(Microsoft) and [Ely.By](https://ely.by/)
-
-For reasons beyond my control, the server is not available in some countries.
-
 
 ## Launch
 

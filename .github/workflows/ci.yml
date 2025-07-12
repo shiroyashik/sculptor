@@ -4,7 +4,7 @@ on:
   push:
     branches: [ "master" ]
     paths:
-      - src
+      - src/**
       - Cargo*
       - Dockerfile
       # this file
@@ -12,7 +12,7 @@ on:
   pull_request:
     branches: [ "master" ]
     paths:
-      - src
+      - src/**
       - Cargo*
       - Dockerfile
       # this file
