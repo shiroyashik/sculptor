@@ -1,5 +1,6 @@
 use dashmap::DashMap;
 use tokio::{sync::{broadcast, mpsc}, task::AbortHandle};
+// use uuid::Uuid;
 
 pub struct WSSession {
     pub user: crate::auth::Userinfo,
@@ -11,5 +12,6 @@ pub struct WSSession {
 
 pub enum SessionMessage {
     Ping(Vec<u8>),
+    // Sub(Uuid),
     Banned,
 }

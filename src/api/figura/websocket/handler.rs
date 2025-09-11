@@ -66,6 +66,9 @@ async fn handle_socket(mut ws: WebSocket, state: AppState) {
 
 #[instrument(skip_all, fields(nickname = %session.user.nickname))]
 async fn main_worker(session: &mut WSSession, ws: &mut WebSocket, state: &AppState) -> anyhow::Result<()> {
+    state.state_pings.insert(session.user.uuid, vec![]);
+    let mut next_state_ping = false;
+
     tracing::debug!("WebSocket control for {} is transferred to the main worker", session.user.nickname);
     loop {
         tokio::select! {
@@ -83,18 +86,35 @@ async fn main_worker(session: &mut WSSession, ws: &mut WebSocket, state: &AppSta
                     },
                 };
 
+                tracing::trace!(ping = ?external_msg);
                 // Processing message
                 match external_msg {
                     C2SMessage::Token(_) => bail!("authentication passed, but the client sent the Token again"),
                     C2SMessage::Ping(func_id, echo, data) => {
-                        let s2c_ping: Vec<u8> = S2CMessage::Ping(session.user.uuid, func_id, echo, data).into();
-                        
-                        // Echo check
-                        if echo {
-                            ws.send(Message::Binary(s2c_ping.clone().into())).await?
+                        if !(func_id == 252645133) {
+                            // Normal procedure
+                            let s2c_ping: Vec<u8> = S2CMessage::Ping(session.user.uuid, func_id, echo, data).into();
+                            
+                            // State ping storing
+                            if next_state_ping {
+                                let mut vec = state.state_pings.get_mut(&session.user.uuid).unwrap();
+                                vec.push(s2c_ping.clone().into());
+                                next_state_ping = false;
+                            }
+                            // Echo check
+                            if echo {
+                                ws.send(Message::Binary(s2c_ping.clone().into())).await?
+                            }
+                            // Sending to others
+                            let _ = session.subs_tx.send(s2c_ping);
+                        } else {
+                            // State ping procedure
+                            match data[1] {
+                                0 => { state.state_pings.insert(session.user.uuid, vec![]); },
+                                1 => { next_state_ping = !next_state_ping; },
+                                _ => {}
+                            }
                         }
-                        // Sending to others
-                        let _ = session.subs_tx.send(s2c_ping);
                     },
                     C2SMessage::Sub(uuid) => {
                         tracing::debug!("[WebSocket] {} subscribes to {}", session.user.nickname, uuid);
@@ -112,6 +132,16 @@ async fn main_worker(session: &mut WSSession, ws: &mut WebSocket, state: &AppSta
                             };
                             let handle = tokio::spawn(sub_worker(session.own_tx.clone(), rx)).abort_handle();
                             session.sub_workers_aborthandles.insert(uuid, handle);
+                            
+                            // Apply state pings / bmpdpvw / 252645133
+                            if let Some(vec) = state.state_pings.get(&uuid) {
+                                tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+                                for ping in &*vec {
+                                    let msg = Message::Binary(ping.clone().into());
+                                    tracing::trace!(msg = ?msg);
+                                    ws.send(msg).await?
+                                }
+                            };
                         }
                     },
                     C2SMessage::Unsub(uuid) => {

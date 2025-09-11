@@ -158,6 +158,7 @@ async fn app() -> Result<bool> {
         uptime: Instant::now(),
         user_manager: Arc::new(UManager::new()),
         session: Arc::new(DashMap::new()),
+        state_pings: Arc::new(DashMap::new()),
         subscribes: Arc::new(DashMap::new()),
         figura_versions: Arc::new(RwLock::new(None)),
         config: Arc::new(RwLock::new(config.clone())),
@@ -200,16 +201,17 @@ async fn app() -> Result<bool> {
         .route("/ws", get(ws))
         .merge(metrics::metrics_router(config.metrics_enabled))
         .with_state(state) 
-        .layer(TraceLayer::new_for_http()
-            // .on_request(|request: &axum::http::Request<_>, _span: &tracing::Span| {
-            //     // only for developing purposes
-            //     tracing::trace!(headers = ?request.headers(), "started processing request");
-            // })
-            .on_response(|response: &axum::http::Response<_>, latency: std::time::Duration, _span: &tracing::Span| {
-                tracing::trace!(latency = ?latency, status = ?response.status(), "finished processing request");
-            })
-            .on_request(())
-        )
+        // .layer(TraceLayer::new_for_http()
+        //     // .on_request(|request: &axum::http::Request<_>, _span: &tracing::Span| {
+        //     //     // only for developing purposes
+        //     //     tracing::trace!(headers = ?request.headers(), "started processing request");
+        //     // })
+        //     .on_response(|response: &axum::http::Response<_>, latency: std::time::Duration, _span: &tracing::Span| {
+        //         tracing::trace!(latency = ?latency, status = ?response.status(), "finished processing request");
+        //     })
+        //     .on_request(())
+        // )
+        .layer(TraceLayer::new_for_http().on_request(()))
         .layer(axum::middleware::from_fn(track_metrics))
         .route("/health", get(|| async { "ok" }));
 

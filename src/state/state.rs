@@ -14,6 +14,8 @@ pub struct AppState {
     pub user_manager: Arc<UManager>,
     /// Send into WebSocket
     pub session: Arc<DashMap<Uuid, mpsc::Sender<SessionMessage>>>,
+
+    pub state_pings: Arc<DashMap<Uuid, Vec<Box<[u8]>>>>,
     /// Send messages for subscribers
     pub subscribes: Arc<DashMap<Uuid, broadcast::Sender<Vec<u8>>>>,
     /// Current configuration
