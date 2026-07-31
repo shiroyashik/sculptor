@@ -13,6 +13,8 @@
 ## Публичный сервер
 
 [![Статус сервера](https://up.shsr.ru/api/badge/1/status?upLabel=Online&downLabel=Offline&label=Server+status)](https://up.shsr.ru/status/pub)
+[![Grafana](https://img.shields.io/badge/Public%20Dashboard-FFF?logo=grafana
+)](https://dash.shsr.ru/public-dashboards/8aba51f52d694f1bb3eab0cb07f01363)
 
 Я держу запущенным публичный сервер!
 
@@ -42,6 +44,10 @@
 Скопируйте [Config.example.toml](Config.example.toml) переименуйте в Config.toml и настройте по своему желанию.
 
 Запустите! `docker compose up -d`
+
+### Мониторинг
+
+Если вы хотите настроить мониторинг, вы можете воспользоваться готовым дашбордом Grafana. Для этого просто импортируйте файл [`grafana-dashboard.json`](grafana-dashboard.json), расположенный в корневом каталоге репозитория, в свою рабочую область Grafana.
 
 ### Исполняемые файлы
 

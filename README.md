@@ -14,6 +14,8 @@ And also a distinctive feature is the possibility of player identification throu
 ## Public server
 
 [![Server status](https://up.shsr.ru/api/badge/1/status?upLabel=Online&downLabel=Offline&label=Server+status)](https://up.shsr.ru/status/pub)
+[![Grafana](https://img.shields.io/badge/Public%20Dashboard-FFF?logo=grafana
+)](https://dash.shsr.ru/public-dashboards/8aba51f52d694f1bb3eab0cb07f01363)
 
 I'm keeping the public server running at the moment!
 
@@ -43,6 +45,10 @@ It assumes you will be using Traefik as a reverse proxy, if so uncomment the lin
 Copy [Config.example.toml](Config.example.toml) change the settings as desired and rename to Config.toml
 
 That's enough to start Sculptor.
+
+### Monitoring
+
+If you want to set up monitoring for your self-hosted instance, you can use the pre-configured Grafana dashboard. Simply import the [`grafana-dashboard.json`](grafana-dashboard.json) file located in the root of the repository into your Grafana workspace.
 
 ### Pre-Built
 
