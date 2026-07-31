@@ -22,7 +22,7 @@ permissions:
   contents: read
 
 env:
-  ZIG_VERSION: 0.14.1
+  ZIG_VERSION: 0.16.0
   CARGO_TERM_COLOR: always
   CARGO_BUILD_TARGETS: x86_64-unknown-linux-gnu,aarch64-unknown-linux-gnu,x86_64-pc-windows-gnu
 
@@ -36,7 +36,7 @@ jobs:
     strategy:
       matrix:
         toolchain:
-          - 1.87
+          - 1.97.1
           # - stable
           # - nightly
     steps:
