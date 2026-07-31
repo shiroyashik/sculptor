@@ -81,7 +81,8 @@ impl From<BannedPlayer> for Userinfo {
 
 impl Config {
     pub fn parse(path: PathBuf) -> Self {
-        let mut file = std::fs::File::open(path).expect("Access denied or file doesn't exists!");
+        // let mut file = std::fs::File::open(path).expect("Access denied or file doesn't exists!");
+        let mut file = std::fs::File::open(path).inspect_err(|_| tracing::error!("Configuration file doesn't exist or Sculptor can't access it!\n\t\t\t>>>>> https://github.com/shiroyashik/sculptor/blob/master/Config.example.toml\n\t\t\tPlace this file next to the executable file!")).unwrap();
         let mut data = String::new();
         file.read_to_string(&mut data).unwrap();
 
