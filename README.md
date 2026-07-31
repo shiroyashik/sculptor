@@ -38,11 +38,11 @@ Make sure that the reverse proxy you are using supports WebSocket and valid cert
 
 ### Docker
 
-For the template you can use [docker-compose.example.yml](docker-compose.example.yml)
+For the template you can use [`docker-compose.example.yml`](docker-compose.example.yml)
 
 It assumes you will be using Traefik as a reverse proxy, if so uncomment the lines and add Sculptor to the network with Traefik.
 
-Copy [Config.example.toml](Config.example.toml) change the settings as desired and rename to Config.toml
+Copy [`Config.example.toml`](Config.example.toml) change the settings as desired and rename to Config.toml
 
 That's enough to start Sculptor.
 

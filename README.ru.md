@@ -37,11 +37,11 @@
 
 ### Docker
 
-Как шаблон для начала можете использовать [docker-compose.example.yml](docker-compose.example.yml)
+Как шаблон для начала можете использовать [`docker-compose.example.yml`](docker-compose.example.yml)
 
 Предполагается, что вы будете использовать Traefik в качестве обратного прокси, если это так, раскомментируйте строки и добавьте Sculptor в сеть с Traefik.
 
-Скопируйте [Config.example.toml](Config.example.toml) переименуйте в Config.toml и настройте по своему желанию.
+Скопируйте [`Config.example.toml`](Config.example.toml) переименуйте в Config.toml и настройте по своему желанию.
 
 Запустите! `docker compose up -d`
 
