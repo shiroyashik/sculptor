@@ -19,6 +19,8 @@ async fn handle_socket(mut ws: WebSocket, state: AppState) {
     // Trying authenticate & get user data or dropping connection
     match authenticate(&mut ws, &state).await {
         Ok(user) => {
+            // Initialising heartbeat
+            state.heartbeat_timestamps.insert(user.uuid, tokio::time::Instant::now());
 
             // Creating session & creating/getting channels
             let mut session = {
@@ -54,6 +56,7 @@ async fn handle_socket(mut ws: WebSocket, state: AppState) {
             // Removing session data
             state.session.remove(&user.uuid);
             state.user_manager.remove(&user.uuid);
+            state.heartbeat_timestamps.remove(&user.uuid);
         },
         Err(kind) => {
             tracing::info!(error = %kind, "Can't authenticate");
@@ -137,6 +140,14 @@ async fn main_worker(session: &mut WSSession, ws: &mut WebSocket, state: &AppSta
                             );
                         bail!("{} banned!", session.user.nickname)
                     },
+                    SessionMessage::ReAuth => {
+                        tracing::info!(nickname = %session.user.nickname, "Sending Re-Auth close frame");
+                        ws.send(Message::Close(Some(axum::extract::ws::CloseFrame { 
+                            code: 4000, 
+                            reason: "Re-auth".into() 
+                        }))).await?;
+                        bail!("Session expired, requesting re-auth for {}", session.user.nickname)
+                    }
                 }
             }
         }

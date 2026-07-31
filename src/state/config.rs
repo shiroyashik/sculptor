@@ -42,7 +42,11 @@ pub struct CMotd {
 pub struct Limitations {
     pub max_avatar_size: u64,
     pub max_avatars: u64,
+    #[serde(default = "default_heartbeat_timeout")] // Добавляем это
+    pub heartbeat_timeout: u64,
 }
+
+fn default_heartbeat_timeout() -> u64 { 360 } // 6 minutes
 
 #[derive(Deserialize, Clone, Debug, PartialEq)]
 #[serde(rename_all = "camelCase")]

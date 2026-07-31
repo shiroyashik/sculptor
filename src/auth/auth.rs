@@ -294,6 +294,8 @@ pub async fn check_auth(
                         debug!(nickname = user.nickname, status = "banned", "Token owner is banned");
                         Err(ApiError::Unauthorized)
                     } else {
+                        // Updating heartbeat
+                        state.heartbeat_timestamps.insert(user.uuid, tokio::time::Instant::now());
                         debug!(nickname = user.nickname, status = "ok", "Token verified successfully");
                         Ok("ok")
                     }

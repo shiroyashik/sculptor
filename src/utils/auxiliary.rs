@@ -8,7 +8,7 @@ use ring::digest::{self, digest};
 use uuid::Uuid;
 use chrono::prelude::*;
 
-use crate::{auth::Userinfo, state::{BannedPlayer, Config}, UManager};
+use crate::{UManager, auth::Userinfo, state::{AppState, BannedPlayer, Config}};
 
 pub fn rand() -> [u8; 50] {
     let mut rng = rng();
@@ -18,6 +18,38 @@ pub fn rand() -> [u8; 50] {
         *x = rng.sample(distr);
     }
     nums
+}
+
+pub async fn heartbeat_monitor(state: AppState) {
+    let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(30)); // Проверка каждые 30 сек
+    loop {
+        interval.tick().await;
+        
+        let timeout_secs = {
+            let config = state.config.read().await;
+            config.limitations.heartbeat_timeout
+        };
+
+        let now = tokio::time::Instant::now();
+        let mut expired_users = Vec::new();
+
+        // Ищем пользователей, которые давно не заходили в API
+        for entry in state.heartbeat_timestamps.iter() {
+            let uuid = entry.key();
+            let last_seen = entry.value();
+
+            if now.duration_since(*last_seen).as_secs() > timeout_secs {
+                expired_users.push(*uuid);
+            }
+        }
+
+        for uuid in expired_users {
+            tracing::info!("User {} heartbeat timeout, closing session", uuid);
+            if let Some(tx) = state.session.get(&uuid) {
+                let _ = tx.send(crate::api::figura::SessionMessage::ReAuth).await;
+            }
+        }
+    }
 }
 
 pub async fn update_advanced_users(

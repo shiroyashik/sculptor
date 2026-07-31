@@ -159,8 +159,9 @@ async fn app() -> Result<bool> {
         user_manager: Arc::new(UManager::new()),
         session: Arc::new(DashMap::new()),
         subscribes: Arc::new(DashMap::new()),
-        figura_versions: Arc::new(RwLock::new(None)),
+        heartbeat_timestamps: Arc::new(DashMap::new()),
         config: Arc::new(RwLock::new(config.clone())),
+        figura_versions: Arc::new(RwLock::new(None)),
     };
 
     // Automatic update of configuration/ban list while the server is running
@@ -178,6 +179,7 @@ async fn app() -> Result<bool> {
             Arc::clone(&state.session)
         ));
     }
+    tokio::spawn(heartbeat_monitor(state.clone()));
 
     let api = Router::new()
         .nest("//auth", api_auth::router()) // => /api//auth ¯\_(ツ)_/¯
