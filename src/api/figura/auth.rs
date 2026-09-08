@@ -1,9 +1,8 @@
 use axum::{extract::{Query, State}, http::HeaderMap, response::{IntoResponse, Response}, routing::get, Router};
 use reqwest::{header::USER_AGENT, StatusCode};
-use ring::digest::{self, digest};
 use tracing::{error, info, instrument};
 
-use crate::{auth::{has_joined, Userinfo}, utils::rand, AppState};
+use crate::{auth::{has_joined, Userinfo}, AppState};
 use super::types::auth::*;
 
 pub fn router() -> Router<AppState> {
@@ -17,8 +16,10 @@ async fn id(
     Query(query): Query<Id>,
     State(state): State<AppState>,
 ) -> String {
+    let mut buffer = [0u8; 32];
+    fastrand::fill(&mut buffer);
     let server_id =
-        faster_hex::hex_string(&digest(&digest::SHA1_FOR_LEGACY_USE_ONLY, &rand()).as_ref()[0..20]);
+        faster_hex::hex_string(ring::digest::digest(&ring::digest::SHA1_FOR_LEGACY_USE_ONLY, &buffer).as_ref());
     let state = state.user_manager;
     state.pending_insert(server_id.clone(), query.username);
     server_id
@@ -34,6 +35,7 @@ async fn verify(
     let server_id = query.id.clone();
     let nickname = state.user_manager.pending_remove(&server_id).unwrap().1; // TODO: Add error check
     let userinfo = match has_joined(
+        &state.http_client,
         state.config.read().await.auth_providers.clone(),
         &server_id,
         &nickname

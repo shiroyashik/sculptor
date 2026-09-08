@@ -11,7 +11,7 @@ pub async fn version(State(state): State<AppState>) -> Json<FiguraVersions> {
     if let Some(res) = res {
         Json(res)
     } else {
-        let actual = get_figura_versions().await;
+        let actual = get_figura_versions(state.http_client).await;
         if let Ok(res) = actual {
             let mut stored = state.figura_versions.write().await;
             *stored = Some(res);

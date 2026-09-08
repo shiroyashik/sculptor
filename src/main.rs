@@ -92,7 +92,9 @@ async fn main() -> Result<()> {
     // 3. Display info about current instance and check updates
     tracing::info!("The Sculptor v{SCULPTOR_VERSION} ({REPOSITORY})");
 
-    match get_latest_version(REPOSITORY).await {
+    let http_client = reqwest::Client::builder().timeout(TIMEOUT).user_agent(USER_AGENT).build().unwrap();
+
+    match get_latest_version(http_client.clone(), REPOSITORY).await {
         Ok(latest_version) => {
             if latest_version > semver::Version::parse(SCULPTOR_VERSION).expect("SCULPTOR_VERSION does not match SemVer!") {
                 tracing::info!("Available new v{latest_version}! Check https://github.com/{REPOSITORY}/releases");
@@ -114,7 +116,7 @@ async fn main() -> Result<()> {
 
     // 4. Starting an app() that starts to serve. If app() returns true, the sculptor will be restarted. TODO: for future
     loop {
-        if !app().await? {
+        if !app(http_client.clone()).await? {
             break;
         }
     }
@@ -122,7 +124,7 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-async fn app() -> Result<bool> {
+async fn app(http_client: reqwest::Client) -> Result<bool> {
     // Config
     let config = Config::parse(CONFIG_VAR.clone().into());
     let listen = config.listen.clone();
@@ -134,11 +136,11 @@ async fn app() -> Result<bool> {
             tracing::debug!("Removing broken assets...");
             remove_assets().await
         }
-        match get_commit_sha(FIGURA_ASSETS_COMMIT_URL).await {
+        match get_commit_sha(http_client.clone(), FIGURA_ASSETS_COMMIT_URL).await {
             Ok(sha) => {
                 if is_assets_outdated(&sha).await.unwrap_or_else(|e| {tracing::error!("Can't check assets state due: {:?}", e); false}) {
                     remove_assets().await;
-                    match tokio::task::spawn_blocking(|| { download_assets() }).await.unwrap() {
+                    match download_assets(http_client.clone()).await {
                         Err(e) => tracing::error!("Assets outdated! Can't download new version due: {:?}", e),
                         Ok(_) => {
                             match write_sha_to_file(&sha).await {
@@ -162,6 +164,7 @@ async fn app() -> Result<bool> {
         heartbeat_timestamps: Arc::new(DashMap::new()),
         config: Arc::new(RwLock::new(config.clone())),
         figura_versions: Arc::new(RwLock::new(None)),
+        http_client,
     };
 
     // Automatic update of configuration/ban list while the server is running

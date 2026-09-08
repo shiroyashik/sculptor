@@ -1,21 +1,19 @@
 use std::path::{self, PathBuf};
 
 use anyhow::bail;
-use reqwest::Client;
 use semver::Version;
 use serde::{Deserialize, Serialize};
 use tokio::{fs::{self, File}, io::{AsyncReadExt as _, AsyncWriteExt as _}};
 
-use crate::{ASSETS_VAR, FIGURA_ASSETS_ZIP_URL, FIGURA_RELEASES_URL, TIMEOUT, USER_AGENT};
+use crate::{ASSETS_VAR, FIGURA_ASSETS_ZIP_URL, FIGURA_RELEASES_URL};
 
 #[derive(Deserialize, Debug)]
 struct Tag {
     name: String
 }
 
-pub async fn get_latest_version(repo: &str) -> anyhow::Result<Version> {
+pub async fn get_latest_version(client: reqwest::Client, repo: &str) -> anyhow::Result<Version> {
     let url = format!("https://api.github.com/repos/{repo}/tags");
-    let client = Client::builder().timeout(TIMEOUT).user_agent(USER_AGENT).build().unwrap();
     let response = client.get(&url).send().await?;
 
     if response.status().is_success() {
@@ -47,8 +45,7 @@ struct Release {
     prerelease: bool
 }
 
-pub async fn get_figura_versions() -> anyhow::Result<FiguraVersions> {
-    let client = Client::builder().timeout(TIMEOUT).user_agent(USER_AGENT).build().unwrap();
+pub async fn get_figura_versions(client: reqwest::Client) -> anyhow::Result<FiguraVersions> {
     let response = client.get(FIGURA_RELEASES_URL).send().await?;
 
     let mut release_ver = Version::new(0, 0, 0);
@@ -96,8 +93,7 @@ pub fn get_path_to_assets_hash() -> PathBuf {
     path::PathBuf::from(&*ASSETS_VAR).join("..").join("assets_last_commit")
 }
 
-pub async fn get_commit_sha(url: &str) -> anyhow::Result<String> {
-    let client = Client::builder().timeout(TIMEOUT).user_agent(USER_AGENT).build().unwrap();
+pub async fn get_commit_sha(client: reqwest::Client, url: &str) -> anyhow::Result<String> {
     let response: reqwest::Response = client.get(url).send().await?;
     let commit: Commit = response.json().await?;
     Ok(commit.sha)
@@ -129,9 +125,7 @@ pub async fn is_assets_outdated(last_sha: &str) -> anyhow::Result<bool> {
     }
 }
 
-pub fn download_assets() -> anyhow::Result<()> {
-    use std::{fs::{File, self}, io::Write as _};
-
+pub async fn download_assets(client: reqwest::Client) -> anyhow::Result<()> {
     let assets_folder = ASSETS_VAR.clone();
 
     // Path to save the downloaded ZIP file
@@ -140,68 +134,71 @@ pub fn download_assets() -> anyhow::Result<()> {
     let zip_file_path = zip_file_path.join("assets.zip");
 
     // Download the ZIP file
-    let client = reqwest::blocking::Client::builder().timeout(TIMEOUT).user_agent(USER_AGENT).build().unwrap();
-    let response: reqwest::blocking::Response = client.get(FIGURA_ASSETS_ZIP_URL).send()?;
-    let bytes = response.bytes()?;
+    let response = client.get(FIGURA_ASSETS_ZIP_URL).send().await?;
+    let bytes = response.bytes().await?;
 
     // Save the downloaded ZIP file to disk
-    let mut file = File::create(&zip_file_path)?;
-    file.write_all(&bytes)?;
-    file.flush()?;
+    fs::write(&zip_file_path, bytes).await?;
 
-    // Open the downloaded ZIP file
-    let file = File::open(&zip_file_path)?;
+    tokio::task::spawn_blocking(move || -> anyhow::Result<()> {
+        use std::fs::{self, File};
 
-    let mut archive = zip::ZipArchive::new(file)?;
-    let mut extraction_info = String::from("Extraction complete! More info:\n");
-    let mut first_folder = String::new();
+        // Open the downloaded ZIP file
+        let file = File::open(&zip_file_path)?;
 
-    for i in 0..archive.len() {
-        let mut file = archive.by_index(i)?;
-        let zipoutpath = match file.enclosed_name() {
-            Some(path) => path,
-            None => continue,
-        };
+        let mut archive = zip::ZipArchive::new(file)?;
+        let mut extraction_info = String::from("Extraction complete! More info:\n");
+        let mut first_folder = String::new();
 
-        // Folder name spoofing
-        if i == 0 {
-            if file.is_dir() {
-                first_folder = zipoutpath.to_str().ok_or_else(|| anyhow::anyhow!("0 index doesn't contains path!"))?.to_string();
-            } else {
-                anyhow::bail!("0 index is not a folder!")
-            }
-        }
-        let mut outpath = path::PathBuf::from(&assets_folder);
-        outpath.push(zipoutpath.strip_prefix(first_folder.clone())?);
-        // Spoof end
+        for i in 0..archive.len() {
+            let mut file = archive.by_index(i)?;
+            let zipoutpath = match file.enclosed_name() {
+                Some(path) => path,
+                None => continue,
+            };
 
-        {
-            let comment = file.comment();
-            if !comment.is_empty() {
-                extraction_info.push_str(&format!("File {i} comment: {comment}\n"));
-            }
-        }
-        if file.is_dir() {
-            extraction_info.push_str(&format!("Dir  {} extracted to \"{}\"\n", i, outpath.display()));
-            fs::create_dir_all(&outpath)?;
-        } else {
-            extraction_info.push_str(&format!(
-                "File {} extracted to \"{}\" ({} bytes)\n",
-                i,
-                outpath.display(),
-                file.size()
-            ));
-            if let Some(p) = outpath.parent() {
-                if !p.exists() {
-                    fs::create_dir_all(p)?;
+            // Folder name spoofing
+            if i == 0 {
+                if file.is_dir() {
+                    first_folder = zipoutpath.to_str().ok_or_else(|| anyhow::anyhow!("0 index doesn't contains path!"))?.to_string();
+                } else {
+                    anyhow::bail!("0 index is not a folder!")
                 }
             }
-            let mut outfile = fs::File::create(&outpath)?;
-            std::io::copy(&mut file, &mut outfile)?;
+            let mut outpath = path::PathBuf::from(&assets_folder);
+            outpath.push(zipoutpath.strip_prefix(first_folder.clone())?);
+            // Spoof end
+
+            {
+                let comment = file.comment();
+                if !comment.is_empty() {
+                    extraction_info.push_str(&format!("File {i} comment: {comment}\n"));
+                }
+            }
+            if file.is_dir() {
+                extraction_info.push_str(&format!("Dir  {} extracted to \"{}\"\n", i, outpath.display()));
+                fs::create_dir_all(&outpath)?;
+            } else {
+                extraction_info.push_str(&format!(
+                    "File {} extracted to \"{}\" ({} bytes)\n",
+                    i,
+                    outpath.display(),
+                    file.size()
+                ));
+                if let Some(p) = outpath.parent() {
+                    if !p.exists() {
+                        fs::create_dir_all(p)?;
+                    }
+                }
+                let mut outfile = fs::File::create(&outpath)?;
+                std::io::copy(&mut file, &mut outfile)?;
+            }
         }
-    }
-    extraction_info.pop(); // Removes \n from end
-    tracing::debug!("{extraction_info}");
+        extraction_info.pop(); // Removes \n from end
+        tracing::debug!("{extraction_info}");
+        Ok(())
+    }).await??;
+
     Ok(())
 }
 

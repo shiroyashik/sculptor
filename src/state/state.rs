@@ -22,4 +22,6 @@ pub struct AppState {
     pub config: Arc<RwLock<super::Config>>,
     /// Caching Figura Versions
     pub figura_versions: Arc<RwLock<Option<FiguraVersions>>>,
+    /// reqwest state
+    pub http_client: reqwest::Client,
 }

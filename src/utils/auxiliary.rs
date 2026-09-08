@@ -3,22 +3,11 @@ use std::{fs::File, io::Read, path::{Path, PathBuf}, sync::Arc};
 use notify::{Event, Watcher};
 use tokio::{io::AsyncReadExt, sync::RwLock};
 use base64::prelude::*;
-use rand::{rng, Rng};
 use ring::digest::{self, digest};
 use uuid::Uuid;
 use chrono::prelude::*;
 
 use crate::{UManager, auth::Userinfo, state::{AppState, BannedPlayer, Config}};
-
-pub fn rand() -> [u8; 50] {
-    let mut rng = rng();
-    let distr = rand::distr::Uniform::new_inclusive(0, 255).expect("rand() failure.");
-    let mut nums: [u8; 50] = [0u8; 50];
-    for x in &mut nums {
-        *x = rng.sample(distr);
-    }
-    nums
-}
 
 pub async fn heartbeat_monitor(state: AppState) {
     let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(30)); // Проверка каждые 30 сек

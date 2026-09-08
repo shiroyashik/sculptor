@@ -9,7 +9,7 @@ use thiserror::Error;
 use tracing::{debug, error, instrument, trace, warn};
 use uuid::Uuid;
 
-use crate::{ApiError, ApiResult, AppState, TIMEOUT, USER_AGENT};
+use crate::{ApiError, ApiResult, AppState};
 
 use super::types::*;
 
@@ -87,11 +87,11 @@ enum FetchError {
 }
 
 async fn fetch_json(
+    client: &reqwest::Client,
     auth_provider: &AuthProvider,
     server_id: &str,
     username: &str,
 ) -> Result<(Uuid, AuthProvider), FetchError> {
-    let client = reqwest::Client::builder().timeout(TIMEOUT).user_agent(USER_AGENT).build().unwrap();
     let url = auth_provider.url.clone();
 
     let res = client
@@ -111,6 +111,7 @@ async fn fetch_json(
 }
 
 pub async fn has_joined(
+    client: &reqwest::Client,
     AuthProviders(authproviders): AuthProviders,
     server_id: &str,
     username: &str,
@@ -119,6 +120,7 @@ pub async fn has_joined(
 
     for provider in &authproviders {
         tokio::spawn(fetch_and_send(
+            client.clone(),
             provider.clone(),
             server_id.to_string(),
             username.to_string(),
@@ -162,12 +164,13 @@ pub async fn has_joined(
 }
 
 async fn fetch_and_send(
+    client: reqwest::Client,
     provider: AuthProvider,
     server_id: String,
     username: String,
     tx: tokio::sync::mpsc::Sender<Result<(Uuid, AuthProvider), FetchError>>
 ) {
-    let _ = tx.send(fetch_json(&provider, &server_id, &username).await)
+    let _ = tx.send(fetch_json(&client, &provider, &server_id, &username).await)
         .await.map_err( |err| trace!("fetch_and_send error [note: ok res returned and mpsc clossed]: {err:?}"));
 }
 
