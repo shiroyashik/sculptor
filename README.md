@@ -13,7 +13,6 @@ And also a distinctive feature is the possibility of player identification throu
 
 ## Public server
 
-[![Server status](https://up.shsr.ru/api/badge/1/status?upLabel=Online&downLabel=Offline&label=Server+status)](https://up.shsr.ru/status/pub)
 [![Grafana](https://img.shields.io/badge/Public%20Dashboard-FFF?logo=grafana
 )](https://dash.shsr.ru/public-dashboards/8aba51f52d694f1bb3eab0cb07f01363)
 
