@@ -1,21 +1,40 @@
 #![allow(clippy::module_inception)]
 use anyhow::Result;
 use axum::{
-    extract::DefaultBodyLimit, routing::{delete, get, post, put}, Router
+    Router,
+    extract::DefaultBodyLimit,
+    http::{Request, StatusCode, header::HOST, uri::Authority},
+    response::Redirect,
+    routing::{any, delete, get, post, put},
 };
+use axum_server::tls_rustls::RustlsConfig;
 use dashmap::DashMap;
-use tracing_panic::panic_hook;
-use tracing_subscriber::{fmt::{self, time::ChronoLocal}, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
-use std::{env::var, path::PathBuf, sync::{Arc, LazyLock}};
-use tokio::{fs, sync::RwLock, time::Instant};
+use std::{
+    env::var,
+    net::{SocketAddr, TcpListener as StdTcpListener},
+    path::PathBuf,
+    sync::{Arc, LazyLock},
+};
+use tokio::{
+    fs,
+    sync::{RwLock, watch},
+    time::Instant,
+};
 use tower_http::trace::TraceLayer;
+use tracing_panic::panic_hook;
+use tracing_subscriber::{
+    EnvFilter,
+    fmt::{self, time::ChronoLocal},
+    layer::SubscriberExt,
+    util::SubscriberInitExt,
+};
 
 // Consts
 mod consts;
 pub use consts::*;
 
 // Errors
-pub use api::errors::{ApiResult, ApiError};
+pub use api::errors::{ApiError, ApiResult};
 
 // Metrics
 mod metrics;
@@ -23,7 +42,9 @@ pub use metrics::*;
 
 // API
 mod api;
-use api::figura::{ws, info as api_info, profile as api_profile, auth as api_auth, assets as api_assets};
+use api::figura::{
+    assets as api_assets, auth as api_auth, info as api_info, profile as api_profile, ws,
+};
 
 // Auth
 mod auth;
@@ -31,27 +52,22 @@ use auth::{UManager, check_auth};
 
 // Config
 mod state;
-use state::{Config, AppState};
+use state::{AppState, Config};
 
 // Utils
 mod utils;
 use utils::*;
 
-pub static LOGGER_VAR: LazyLock<String> = LazyLock::new(|| {
-    var(LOGGER_ENV).unwrap_or(String::from("info"))
-});
-pub static CONFIG_VAR: LazyLock<String> = LazyLock::new(|| {
-    var(CONFIG_ENV).unwrap_or(String::from("Config.toml"))
-});
-pub static LOGS_VAR: LazyLock<String> = LazyLock::new(|| {
-    var(LOGS_ENV).unwrap_or(String::from("logs"))
-});
-pub static ASSETS_VAR: LazyLock<String> = LazyLock::new(|| {
-    var(ASSETS_ENV).unwrap_or(String::from("data/assets"))
-});
-pub static AVATARS_VAR: LazyLock<String> = LazyLock::new(|| {
-    var(AVATARS_ENV).unwrap_or(String::from("data/avatars"))
-});
+pub static LOGGER_VAR: LazyLock<String> =
+    LazyLock::new(|| var(LOGGER_ENV).unwrap_or(String::from("info")));
+pub static CONFIG_VAR: LazyLock<String> =
+    LazyLock::new(|| var(CONFIG_ENV).unwrap_or(String::from("Config.toml")));
+pub static LOGS_VAR: LazyLock<String> =
+    LazyLock::new(|| var(LOGS_ENV).unwrap_or(String::from("logs")));
+pub static ASSETS_VAR: LazyLock<String> =
+    LazyLock::new(|| var(ASSETS_ENV).unwrap_or(String::from("data/assets")));
+pub static AVATARS_VAR: LazyLock<String> =
+    LazyLock::new(|| var(AVATARS_ENV).unwrap_or(String::from("data/avatars")));
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -92,25 +108,36 @@ async fn main() -> Result<()> {
     // 3. Display info about current instance and check updates
     tracing::info!("The Sculptor v{SCULPTOR_VERSION} ({REPOSITORY})");
 
-    let http_client = reqwest::Client::builder().timeout(TIMEOUT).user_agent(USER_AGENT).build().unwrap();
+    let http_client = reqwest::Client::builder()
+        .timeout(TIMEOUT)
+        .user_agent(USER_AGENT)
+        .build()
+        .unwrap();
 
     match get_latest_version(http_client.clone(), REPOSITORY).await {
         Ok(latest_version) => {
-            if latest_version > semver::Version::parse(SCULPTOR_VERSION).expect("SCULPTOR_VERSION does not match SemVer!") {
-                tracing::info!("Available new v{latest_version}! Check https://github.com/{REPOSITORY}/releases");
+            if latest_version
+                > semver::Version::parse(SCULPTOR_VERSION)
+                    .expect("SCULPTOR_VERSION does not match SemVer!")
+            {
+                tracing::info!(
+                    "Available new v{latest_version}! Check https://github.com/{REPOSITORY}/releases"
+                );
             } else {
                 tracing::info!("Sculptor are up to date!");
             }
-        },
+        }
         Err(e) => {
             tracing::error!("Can't fetch Sculptor updates due: {e:?}");
-        },
+        }
     }
 
     // Creating avatars folder
     let path = PathBuf::from(&*AVATARS_VAR);
     if !path.exists() {
-        fs::create_dir_all(path).await.expect("Can't create avatars folder!");
+        fs::create_dir_all(path)
+            .await
+            .expect("Can't create avatars folder!");
         tracing::info!("Created avatars directory");
     }
 
@@ -138,20 +165,32 @@ async fn app(http_client: reqwest::Client) -> Result<bool> {
         }
         match get_commit_sha(http_client.clone(), FIGURA_ASSETS_COMMIT_URL).await {
             Ok(sha) => {
-                if is_assets_outdated(&sha).await.unwrap_or_else(|e| {tracing::error!("Can't check assets state due: {:?}", e); false}) {
+                if is_assets_outdated(&sha).await.unwrap_or_else(|e| {
+                    tracing::error!("Can't check assets state due: {:?}", e);
+                    false
+                }) {
                     remove_assets().await;
                     match download_assets(http_client.clone()).await {
-                        Err(e) => tracing::error!("Assets outdated! Can't download new version due: {:?}", e),
-                        Ok(_) => {
-                            match write_sha_to_file(&sha).await {
-                                Ok(_) => tracing::info!("Assets successfully updated!"),
-                                Err(e) => tracing::error!("Assets successfully updated! Can't create assets hash file due: {:?}", e),
-                            }
-                        }
+                        Err(e) => tracing::error!(
+                            "Assets outdated! Can't download new version due: {:?}",
+                            e
+                        ),
+                        Ok(_) => match write_sha_to_file(&sha).await {
+                            Ok(_) => tracing::info!("Assets successfully updated!"),
+                            Err(e) => tracing::error!(
+                                "Assets successfully updated! Can't create assets hash file due: {:?}",
+                                e
+                            ),
+                        },
                     };
-                } else { tracing::info!("Assets are up to date!") }
-            },
-            Err(e) => tracing::error!("Can't get assets last commit! Assets update check aborted due {:?}", e)
+                } else {
+                    tracing::info!("Assets are up to date!")
+                }
+            }
+            Err(e) => tracing::error!(
+                "Can't get assets last commit! Assets update check aborted due {:?}",
+                e
+            ),
         }
     }
 
@@ -172,14 +211,14 @@ async fn app(http_client: reqwest::Client) -> Result<bool> {
         CONFIG_VAR.clone().into(),
         Arc::clone(&state.user_manager),
         Arc::clone(&state.session),
-        Arc::clone(&state.config)
+        Arc::clone(&state.config),
     ));
     // Blacklist auto update
     if config.mc_folder.exists() {
         tokio::spawn(update_bans_from_minecraft(
             state.config.read().await.mc_folder.clone(),
             Arc::clone(&state.user_manager),
-            Arc::clone(&state.session)
+            Arc::clone(&state.session),
         ));
     }
     tokio::spawn(heartbeat_monitor(state.clone()));
@@ -196,7 +235,10 @@ async fn app(http_client: reqwest::Client) -> Result<bool> {
         .route("/equip", post(api_profile::equip_avatar))
         .route("/{uuid}", get(api_profile::user_info))
         .route("/{uuid}/avatar", get(api_profile::download_avatar))
-        .route("/avatar", put(api_profile::upload_avatar).layer(DefaultBodyLimit::max(limit)))
+        .route(
+            "/avatar",
+            put(api_profile::upload_avatar).layer(DefaultBodyLimit::max(limit)),
+        )
         .route("/avatar", delete(api_profile::delete_avatar));
 
     let app = Router::new()
@@ -204,7 +246,7 @@ async fn app(http_client: reqwest::Client) -> Result<bool> {
         .route("/api/", get(check_auth))
         .route("/ws", get(ws))
         .merge(metrics::metrics_router(config.metrics_enabled))
-        .with_state(state) 
+        .with_state(state)
         .layer(TraceLayer::new_for_http()
             // .on_request(|request: &axum::http::Request<_>, _span: &tracing::Span| {
             //     // only for developing purposes
@@ -218,15 +260,91 @@ async fn app(http_client: reqwest::Client) -> Result<bool> {
         .layer(axum::middleware::from_fn(track_metrics))
         .route("/health", get(|| async { "ok" }));
 
-    let listener = tokio::net::TcpListener::bind(listen).await?;
-    tracing::info!("Listening on {}", listener.local_addr()?);
+    if let Some(tls) = config.tls {
+        let https_listen: SocketAddr = tls.https_listen.parse()?;
+        let tls_config = RustlsConfig::from_pem_file(tls.cert, tls.key).await?;
+        let http_listener = tokio::net::TcpListener::bind(&listen).await?;
+        let http_addr = http_listener.local_addr()?;
+        let https_listener = StdTcpListener::bind(https_listen)?;
+        https_listener.set_nonblocking(true)?;
+        let https_addr = https_listener.local_addr()?;
+        let (shutdown_tx, shutdown_rx) = watch::channel(false);
 
-    axum::serve(listener, app)
-        .with_graceful_shutdown(shutdown_signal())
-        .await?;
-    
+        tracing::info!("Listening for HTTP redirects on {http_addr}");
+        tracing::info!("Listening for HTTPS on {https_addr}");
+
+        tokio::spawn(async move {
+            shutdown_signal().await;
+            let _ = shutdown_tx.send(true);
+        });
+
+        let https_handle = axum_server::Handle::new();
+        let https_shutdown_handle = https_handle.clone();
+        let mut https_shutdown_rx = shutdown_rx.clone();
+        tokio::spawn(async move {
+            wait_for_shutdown(&mut https_shutdown_rx).await;
+            https_shutdown_handle.graceful_shutdown(None);
+        });
+
+        let redirect_app = Router::new().fallback(any(redirect_to_https));
+        let mut http_shutdown_rx = shutdown_rx;
+        let http_server = axum::serve(http_listener, redirect_app)
+            .with_graceful_shutdown(async move { wait_for_shutdown(&mut http_shutdown_rx).await });
+        let https_server = axum_server::from_tcp_rustls(https_listener, tls_config)?
+            .handle(https_handle)
+            .serve(app.into_make_service());
+
+        tokio::try_join!(http_server, https_server)?;
+    } else {
+        let listener = tokio::net::TcpListener::bind(listen).await?;
+        tracing::info!("Listening for HTTP on {}", listener.local_addr()?);
+
+        axum::serve(listener, app)
+            .with_graceful_shutdown(shutdown_signal())
+            .await?;
+    }
+
     tracing::info!("Serve stopped.");
     Ok(false)
+}
+
+async fn redirect_to_https(
+    request: Request<axum::body::Body>,
+) -> std::result::Result<Redirect, StatusCode> {
+    let authority = request
+        .headers()
+        .get(HOST)
+        .ok_or(StatusCode::BAD_REQUEST)?
+        .to_str()
+        .map_err(|_| StatusCode::BAD_REQUEST)?
+        .parse::<Authority>()
+        .map_err(|_| StatusCode::BAD_REQUEST)?;
+
+    if authority.as_str().contains('@') {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
+    let host = authority.host();
+    let host = if host.contains(':') && !host.starts_with('[') {
+        format!("[{host}]")
+    } else {
+        host.to_owned()
+    };
+    let location = format!(
+        "https://{host}{}",
+        request
+            .uri()
+            .path_and_query()
+            .map_or("/", |value| value.as_str())
+    );
+
+    Ok(Redirect::permanent(&location))
+}
+
+async fn wait_for_shutdown(receiver: &mut watch::Receiver<bool>) {
+    if !*receiver.borrow() {
+        let _ = receiver.changed().await;
+    }
 }
 
 async fn shutdown_signal() {

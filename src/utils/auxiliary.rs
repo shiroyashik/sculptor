@@ -1,19 +1,28 @@
-use std::{fs::File, io::Read, path::{Path, PathBuf}, sync::Arc};
+use std::{
+    fs::File,
+    io::Read,
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
-use notify::{Event, Watcher};
-use tokio::{io::AsyncReadExt, sync::RwLock};
 use base64::prelude::*;
-use ring::digest::{self, digest};
-use uuid::Uuid;
 use chrono::prelude::*;
+use notify::{Event, Watcher};
+use ring::digest::{self, digest};
+use tokio::{io::AsyncReadExt, sync::RwLock};
+use uuid::Uuid;
 
-use crate::{UManager, auth::Userinfo, state::{AppState, BannedPlayer, Config}};
+use crate::{
+    UManager,
+    auth::Userinfo,
+    state::{AppState, BannedPlayer, Config},
+};
 
 pub async fn heartbeat_monitor(state: AppState) {
     let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(30)); // Проверка каждые 30 сек
     loop {
         interval.tick().await;
-        
+
         let timeout_secs = {
             let config = state.config.read().await;
             config.limitations.heartbeat_timeout
@@ -44,7 +53,9 @@ pub async fn heartbeat_monitor(state: AppState) {
 pub async fn update_advanced_users(
     path: PathBuf,
     umanager: Arc<UManager>,
-    sessions: Arc<dashmap::DashMap<Uuid, tokio::sync::mpsc::Sender<crate::api::figura::SessionMessage>>>,
+    sessions: Arc<
+        dashmap::DashMap<Uuid, tokio::sync::mpsc::Sender<crate::api::figura::SessionMessage>>,
+    >,
     config: Arc<RwLock<Config>>,
 ) {
     let (tx, mut rx) = tokio::sync::mpsc::channel::<notify::Result<Event>>(1);
@@ -54,8 +65,11 @@ pub async fn update_advanced_users(
             tx.blocking_send(res).unwrap();
         },
         notify::Config::default(),
-    ).unwrap();
-    watcher.watch(&path, notify::RecursiveMode::NonRecursive).unwrap();
+    )
+    .unwrap();
+    watcher
+        .watch(&path, notify::RecursiveMode::NonRecursive)
+        .unwrap();
 
     let mut first_time = true;
     while rx.recv().await.is_some() {
@@ -63,28 +77,34 @@ pub async fn update_advanced_users(
         let mut config = config.write().await;
 
         if new_config != *config || first_time {
-            if !first_time { tracing::info!("Server configuration modification detected!") }
+            if !first_time {
+                tracing::info!("Server configuration modification detected!")
+            }
             first_time = false;
             *config = new_config;
-            let users: Vec<(Uuid, Userinfo)> = config.advanced_users
+            let users: Vec<(Uuid, Userinfo)> = config
+                .advanced_users
                 .iter()
-                .map( |(uuid, userdata)| {
+                .map(|(uuid, userdata)| {
                     (
-                    *uuid,
-                    Userinfo { 
-                        uuid: *uuid,
-                        nickname: userdata.username.clone(),
-                        banned: userdata.banned,
-                        ..Default::default()
-                    }
-                )})
+                        *uuid,
+                        Userinfo {
+                            uuid: *uuid,
+                            nickname: userdata.username.clone(),
+                            banned: userdata.banned,
+                            ..Default::default()
+                        },
+                    )
+                })
                 .collect();
-        
+
             for (uuid, userinfo) in users {
                 umanager.insert_user(uuid, userinfo.clone());
                 if userinfo.banned {
                     umanager.ban(&userinfo);
-                    if let Some(tx) = sessions.get(&uuid) {let _ = tx.send(crate::api::figura::SessionMessage::Banned).await;}
+                    if let Some(tx) = sessions.get(&uuid) {
+                        let _ = tx.send(crate::api::figura::SessionMessage::Banned).await;
+                    }
                 } else {
                     umanager.unban(&uuid);
                 }
@@ -96,16 +116,23 @@ pub async fn update_advanced_users(
 pub async fn update_bans_from_minecraft(
     folder: PathBuf,
     umanager: Arc<UManager>,
-    sessions: Arc<dashmap::DashMap<Uuid, tokio::sync::mpsc::Sender<crate::api::figura::SessionMessage>>>
+    sessions: Arc<
+        dashmap::DashMap<Uuid, tokio::sync::mpsc::Sender<crate::api::figura::SessionMessage>>,
+    >,
 ) {
     let path = folder.join("banned-players.json");
-    let mut file = tokio::fs::File::open(path.clone()).await.expect("Access denied or banned-players.json doesn't exists!");
+    let mut file = tokio::fs::File::open(path.clone())
+        .await
+        .expect("Access denied or banned-players.json doesn't exists!");
     let mut data = String::new();
     // vars end
 
     // initialize
-    file.read_to_string(&mut data).await.expect("cant read banned-players.json");
-    let mut old_bans: Vec<BannedPlayer> = serde_json::from_str(&data).expect("cant parse banned-players.json");
+    file.read_to_string(&mut data)
+        .await
+        .expect("cant read banned-players.json");
+    let mut old_bans: Vec<BannedPlayer> =
+        serde_json::from_str(&data).expect("cant parse banned-players.json");
 
     if !old_bans.is_empty() {
         let names: Vec<String> = old_bans.iter().map(|user| user.name.clone()).collect();
@@ -114,7 +141,9 @@ pub async fn update_bans_from_minecraft(
 
     for player in &old_bans {
         umanager.ban(&player.clone().into());
-        if let Some(tx) = sessions.get(&player.uuid) {let _ = tx.send(crate::api::figura::SessionMessage::Banned).await;}
+        if let Some(tx) = sessions.get(&player.uuid) {
+            let _ = tx.send(crate::api::figura::SessionMessage::Banned).await;
+        }
     }
 
     let (tx, mut rx) = tokio::sync::mpsc::channel::<notify::Result<Event>>(1);
@@ -123,37 +152,68 @@ pub async fn update_bans_from_minecraft(
             tx.blocking_send(res).unwrap();
         },
         notify::Config::default(),
-    ).unwrap();
-    watcher.watch(&path, notify::RecursiveMode::NonRecursive).unwrap();
+    )
+    .unwrap();
+    watcher
+        .watch(&path, notify::RecursiveMode::NonRecursive)
+        .unwrap();
 
     // old_bans
     while rx.recv().await.is_some() {
-        let mut file = tokio::fs::File::open(path.clone()).await.expect("Access denied or file doesn't exists!");
+        let mut file = tokio::fs::File::open(path.clone())
+            .await
+            .expect("Access denied or file doesn't exists!");
         let mut data = String::new();
-        file.read_to_string(&mut data).await.expect("cant read banned-players.json");
-        let new_bans: Vec<BannedPlayer> = if let Ok(res) = serde_json::from_str(&data) { res } else {
+        file.read_to_string(&mut data)
+            .await
+            .expect("cant read banned-players.json");
+        let new_bans: Vec<BannedPlayer> = if let Ok(res) = serde_json::from_str(&data) {
+            res
+        } else {
             tracing::error!("Error occured while parsing a banned-players.json");
             continue;
         };
 
         if new_bans != old_bans {
             tracing::info!("Minecraft ban list modification detected!");
-            let unban: Vec<&BannedPlayer> = old_bans.iter().filter(|user| !new_bans.contains(user)).collect();
-            let mut unban_names = unban.iter().map(|user| user.name.clone()).collect::<Vec<String>>().join(", ");
+            let unban: Vec<&BannedPlayer> = old_bans
+                .iter()
+                .filter(|user| !new_bans.contains(user))
+                .collect();
+            let mut unban_names = unban
+                .iter()
+                .map(|user| user.name.clone())
+                .collect::<Vec<String>>()
+                .join(", ");
             if !unban.is_empty() {
                 for player in unban {
                     umanager.unban(&player.uuid);
                 }
-            } else { unban_names = String::from("-")};
-            let ban: Vec<&BannedPlayer> = new_bans.iter().filter(|user| !old_bans.contains(user)).collect();
-            let mut ban_names = ban.iter().map(|user| user.name.clone()).collect::<Vec<String>>().join(", ");
+            } else {
+                unban_names = String::from("-")
+            };
+            let ban: Vec<&BannedPlayer> = new_bans
+                .iter()
+                .filter(|user| !old_bans.contains(user))
+                .collect();
+            let mut ban_names = ban
+                .iter()
+                .map(|user| user.name.clone())
+                .collect::<Vec<String>>()
+                .join(", ");
             if !ban.is_empty() {
                 for player in ban {
                     umanager.ban(&player.clone().into());
-                    if let Some(tx) = sessions.get(&player.uuid) {let _ = tx.send(crate::api::figura::SessionMessage::Banned).await;}
+                    if let Some(tx) = sessions.get(&player.uuid) {
+                        let _ = tx.send(crate::api::figura::SessionMessage::Banned).await;
+                    }
                 }
-            } else { ban_names = String::from("-")};
-            tracing::info!("List of changes:\n    Banned: {ban_names}\n    Unbanned: {unban_names}");
+            } else {
+                ban_names = String::from("-")
+            };
+            tracing::info!(
+                "List of changes:\n    Banned: {ban_names}\n    Unbanned: {unban_names}"
+            );
             // Write new to old for next iteration
             old_bans = new_bans;
         }

@@ -4,12 +4,13 @@ use serde::Deserialize;
 use tracing::{debug, warn};
 use uuid::Uuid;
 
-use crate::auth::{default_authproviders, AuthProviders, Userinfo};
+use crate::auth::{AuthProviders, Userinfo, default_authproviders};
 
 #[derive(Deserialize, Clone, Debug, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Config {
     pub listen: String,
+    pub tls: Option<TlsConfig>,
     #[serde(default)]
     pub metrics_enabled: bool,
     pub token: Option<String>,
@@ -22,6 +23,14 @@ pub struct Config {
     pub mc_folder: PathBuf,
     #[serde(default)]
     pub advanced_users: HashMap<Uuid, AdvancedUsers>,
+}
+
+#[derive(Deserialize, Clone, Debug, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct TlsConfig {
+    pub cert: PathBuf,
+    pub key: PathBuf,
+    pub https_listen: String,
 }
 
 #[derive(Deserialize, Clone, Debug, PartialEq)]
@@ -46,7 +55,9 @@ pub struct Limitations {
     pub heartbeat_timeout: u64,
 }
 
-fn default_heartbeat_timeout() -> u64 { 360 } // 6 minutes
+fn default_heartbeat_timeout() -> u64 {
+    360
+} // 6 minutes
 
 #[derive(Deserialize, Clone, Debug, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -56,9 +67,9 @@ pub struct AdvancedUsers {
     #[serde(default)]
     pub banned: bool,
     #[serde(default)]
-    pub special: [u8;6],
+    pub special: [u8; 6],
     #[serde(default)]
-    pub pride: [u8;25],
+    pub pride: [u8; 25],
 }
 
 #[derive(Deserialize, Clone, Debug, PartialEq)]
@@ -86,7 +97,10 @@ impl Config {
         let mut data = String::new();
         file.read_to_string(&mut data).unwrap();
 
-        toml::from_str(&data).unwrap_or_else(|err| {tracing::error!("{err:#?}"); panic!("Panic occured! See log messages!")})
+        toml::from_str(&data).unwrap_or_else(|err| {
+            tracing::error!("{err:#?}");
+            panic!("Panic occured! See log messages!")
+        })
     }
 
     pub fn verify_token(&self, suspicious: &str) -> crate::ApiResult<()> {
@@ -100,11 +114,11 @@ impl Config {
                     warn!("Unknown tryed to use admin functions, but use wrong token!");
                     Err(ApiError::Unauthorized)
                 }
-            },
+            }
             None => {
                 warn!("Unknown tryed to use admin functions, but token is not defined!");
                 Err(ApiError::BadRequest)
-            },
+            }
         }
     }
 }

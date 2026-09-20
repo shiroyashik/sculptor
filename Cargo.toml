@@ -39,6 +39,7 @@ fastrand = "2.5"
 
 # Web
 axum = { version = "0.8", features = ["ws", "macros", "http2"] }
+axum-server = { version = "0.8", features = ["tls-rustls"] }
 tower-http = { version = "0.7", features = ["trace"] }
 tokio = { version = "1.41", features = ["full"] }
 prometheus = { version = "0.14", features = ["process"] }
